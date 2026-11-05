@@ -13,9 +13,9 @@ class ExperienceRulesTest {
     private fun seg(t: SegmentType, title: String) = HardSegment(title, t, title, GeoPoint(0.0, 0.0), 0, emptyMap())
     private val merge = seg(SegmentType.HIGHWAY_MERGE, "경부선 합류")
     private val left = seg(SegmentType.MULTILANE_LEFT, "대로 좌회전")
-    private val bundang = Region("41135", "성남시분당구")
-    private val gangnam = Region("11680", "강남구")
-    private val suwon = Region("41111", "수원시장안구")
+    private val bundang = Region("41135", "경기 성남시 분당구")
+    private val gangnam = Region("11680", "서울 강남구")
+    private val suwon = Region("41111", "경기 수원시 장안구")
 
     private fun session(
         id: String = "S1", events: List<app.upmile.core.drive.DriveEvent> = emptyList(),
@@ -63,9 +63,9 @@ class ExperienceRulesTest {
         assertEquals(setOf(ExperienceType.FIRST_DRIVE, ExperienceType.NEW_CITY, ExperienceType.NEW_PROVINCE), types(r1))
         assertEquals("A", r1.unseenSessionId)
         val r2 = ExperienceRules.apply(r1, session("B", arr, region = suwon)) // same province 41, new city
-        assertEquals(r1.cards.size + 0, r2.cards.size)
+        assertEquals(r1.cards.size, r2.cards.size)
         val r3 = ExperienceRules.apply(r2, session("C", arr, region = gangnam)) // province 11
-        assertTrue(r3.cards.any { it.type == ExperienceType.NEW_PROVINCE && it.place == "강남구" } || r3.regions.size == 3)
+        assertEquals(1, r3.cards.count { it.type == ExperienceType.NEW_PROVINCE })
         assertEquals(3, r3.regions.size)
     }
 

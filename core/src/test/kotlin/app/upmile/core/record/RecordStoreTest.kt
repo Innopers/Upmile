@@ -18,6 +18,11 @@ class RecordStoreTest {
 
     @Test fun missingFile_loadsEmpty() = assertEquals(Record.EMPTY, RecordStore(File(tmp.root, "record.json")).load())
 
+    @Test fun corruptFile_loadsEmpty() {
+        val f = File(tmp.root, "record.json").apply { writeText("{not json") }
+        assertEquals(Record.EMPTY, RecordStore(f).load())
+    }
+
     @Test fun roundTrip() {
         val s = RecordStore(File(tmp.root, "record.json"))
         s.save(rec)

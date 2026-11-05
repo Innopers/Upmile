@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Builds assets/regions/sigungu.geojson (시·군·구 polygons, props: sgg = 5-digit code, sggnm = name).
+# Builds assets/regions/sigungu.geojson (시·군·구 polygons, props: sgg = 5-digit code, sggnm = display name like '경기 성남시 분당구').
 # Source: vuski/admdongkor (통계청 SGIS 기반, CC BY 4.0). Needs node/npx. Usage: tools/build_regions.sh [ver]
 set -euo pipefail
 VER="${1:-ver20261001}"
@@ -9,6 +9,6 @@ mkdir -p "$WORK" "$ROOT/assets/regions"
 IN="$WORK/HangJeongDong_$VER.geojson"
 [ -f "$IN" ] || curl -fL -o "$IN" "https://raw.githubusercontent.com/vuski/admdongkor/master/$VER/HangJeongDong_$VER.geojson"
 cd "$WORK"
-npx --yes mapshaper "$IN" -each 'sgg=adm_cd2.substr(0,5)' -dissolve sgg copy-fields=sggnm \
+npx --yes mapshaper "$IN" -each 'sgg=adm_cd2.substr(0,5), sggnm=({"11":"서울","12":"전남광주","26":"부산","27":"대구","28":"인천","29":"광주","30":"대전","31":"울산","36":"세종","41":"경기","43":"충북","44":"충남","45":"전북","46":"전남","47":"경북","48":"경남","50":"제주","51":"강원","52":"전북"}[sido]||sidonm)+" "+sggnm.replace(/^(.+?시)(.+구)$/,"$1 $2")' -dissolve sgg copy-fields=sggnm \
   -simplify 3% keep-shapes -o "$ROOT/assets/regions/sigungu.geojson" format=geojson
 ls -l "$ROOT/assets/regions/sigungu.geojson"
