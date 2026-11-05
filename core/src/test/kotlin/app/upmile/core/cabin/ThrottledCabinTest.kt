@@ -25,6 +25,24 @@ class ThrottledCabinTest {
         assertEquals(listOf(20, 40), fake.brightnessCalls)
     }
 
+    @Test fun throttledCall_repeatsLastRealResult() {
+        var now = 0L; var works = true
+        val inner = object : CabinController {
+            override fun ambient(brightness: Int, argb: Int) = works
+            override fun quietFan() = true
+            override fun restore() {}
+        }
+        val c = ThrottledCabin(inner, clock = { now })
+        assertTrue(c.ambient(1, RED)); now = 100; assertTrue(c.ambient(2, RED)) // dropped, but control works
+        works = false; now = 300; assertFalse(c.ambient(3, RED)); now = 400; assertFalse(c.ambient(4, RED))
+    }
+
+    @Test fun throttledCall_afterThrow_isFalse() {
+        var now = 0L
+        val c = ThrottledCabin(ThrowingCabin(SecurityException("x")), clock = { now })
+        assertFalse(c.ambient(1, RED)); now = 100; assertFalse(c.ambient(2, RED))
+    }
+
     @Test fun rejectedControl_returnsFalse_neverThrows() {
         val c = ThrottledCabin(ThrowingCabin(SecurityException("CONTROL_CAR_LIGHTS")), clock = { 0 })
         assertFalse(c.ambient(50, RED))
