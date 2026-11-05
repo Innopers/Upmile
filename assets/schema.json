@@ -1,0 +1,44 @@
+{
+  "packageName": "app.upmile",
+  "appDescription": "Upmile helps the driver prepare the cabin before departure, preview today's route, and review the driving record.",
+  "version": "1.0.0",
+  "actionCalls": [
+    {
+      "type": "function",
+      "function": {
+        "name": "START_ROUTINE",
+        "description": "Start the pre-departure routine that prepares the cabin.",
+        "parameters": { "type": "object", "properties": {}, "required": [] }
+      },
+      "component": "activity"
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "PREVIEW_TODAY_ROUTE",
+        "description": "Preview today's route to a chosen destination before driving.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "destination": {
+              "type": "string",
+              "description": "Destination identifier: commute is the workplace, cafe is the first-time cafe, inlaws is the in-laws home.",
+              "enum": ["commute", "cafe", "inlaws"]
+            }
+          },
+          "required": ["destination"]
+        }
+      },
+      "component": "activity"
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "SHOW_MY_RECORD",
+        "description": "Show the driver's accumulated driving record.",
+        "parameters": { "type": "object", "properties": {}, "required": [] }
+      },
+      "component": "activity"
+    }
+  ]
+}
