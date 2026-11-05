@@ -1,0 +1,9 @@
+{"type":"FeatureCollection","features":[
+{"type":"Feature","geometry":{"type":"Point","coordinates":[127.0276,37.4979]},"properties":{"index":0,"pointIndex":0,"turnType":200,"description":"출발","totalDistance":18200,"totalTime":1440}},
+{"type":"Feature","geometry":{"type":"LineString","coordinates":[[127.0276,37.4979],[127.0300,37.5000],[127.0350,37.5050]]},"properties":{"index":1,"lineIndex":0,"roadType":6,"distance":900}},
+{"type":"Feature","geometry":{"type":"Point","coordinates":[127.0350,37.5050]},"properties":{"index":2,"pointIndex":1,"turnType":12,"description":"좌회전"}},
+{"type":"Feature","geometry":{"type":"LineString","coordinates":[[127.0350,37.5050],[127.0400,37.5100]]},"properties":{"index":3,"lineIndex":1,"roadType":0,"distance":700}},
+{"type":"Feature","geometry":{"type":"Point","coordinates":[127.0400,37.5100]},"properties":{"index":4,"pointIndex":2,"turnType":101,"description":"고속도로 진입"}},
+{"type":"Feature","geometry":{"type":"LineString","coordinates":[[127.0400,37.5100],[127.0500,37.5200]]},"properties":{"index":5,"lineIndex":2,"roadType":1,"distance":1500}},
+{"type":"Feature","geometry":{"type":"Point","coordinates":[127.0500,37.5200]},"properties":{"index":6,"pointIndex":3,"turnType":201,"description":"도착"}}
+]}
