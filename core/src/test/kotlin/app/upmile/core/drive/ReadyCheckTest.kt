@@ -22,15 +22,22 @@ class ReadyCheckTest {
         assertTrue("급제동 감지" in s.warnings.single() && listOf("점수", "평가").none { it in s.warnings.single() })
     }
 
-    @Test fun serviceNotRunning_blocksDrive_withWarning() {
-        val s = ReadyCheck.evaluate(true, true, true, false)
-        assertFalse(s.canDrive); assertEquals(1, s.warnings.size)
+    @Test fun serviceNotStartedYet_doesNotBlockDrive() {
+        // 출발 is what starts the service, so READY must not wait for it
+        val s = ReadyCheck.evaluate(true, true, true, serviceRunning = false)
+        assertTrue(s.canDrive); assertTrue(s.warnings.isEmpty())
+    }
+
+    @Test fun serviceFailedAfterStart_warns_butDoesNotBlock() {
+        val s = ReadyCheck.evaluate(true, true, true, serviceRunning = false, serviceStartAttempted = true)
+        assertTrue(s.canDrive); assertEquals(listOf("주행 안내가 아직 켜지지 않았어요. 앱을 다시 열어 주세요."), s.warnings)
+        assertTrue(ReadyCheck.evaluate(true, true, true, serviceRunning = true, serviceStartAttempted = true).warnings.isEmpty())
     }
 
     @Test fun demoMode_treatsPermissionsAsGranted_butStillReportsVoiceAndService() {
         val ok = ReadyCheck.evaluate(true, false, false, true, demoMode = true)
         assertTrue(ok.canDrive); assertTrue(ok.warnings.isEmpty())
-        val s = ReadyCheck.evaluate(false, false, false, false, demoMode = true)
-        assertFalse(s.canDrive); assertEquals(2, s.warnings.size)
+        val s = ReadyCheck.evaluate(false, false, false, false, demoMode = true, serviceStartAttempted = true)
+        assertTrue(s.canDrive); assertEquals(2, s.warnings.size)
     }
 }
