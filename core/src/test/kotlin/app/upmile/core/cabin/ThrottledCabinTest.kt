@@ -38,3 +38,18 @@ class ThrottledCabinTest {
         assertTrue(c.lastError is IllegalStateException)
     }
 }
+
+class ThrottleWindowOnErrorTest {
+    @Test fun throwingAmbient_stillStartsWindow() {
+        var now = 0L
+        val inner = object : CabinController {
+            var calls = 0
+            override fun ambient(brightness: Int, argb: Int): Boolean { calls++; throw IllegalStateException() }
+            override fun quietFan() = true
+            override fun restore() {}
+        }
+        val c = ThrottledCabin(inner, clock = { now })
+        c.ambient(1, 0); now = 100; c.ambient(2, 0)
+        assertEquals(1, inner.calls)
+    }
+}

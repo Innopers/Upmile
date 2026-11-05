@@ -1,24 +1,44 @@
 {
-  "functions": [
+  "packageName": "app.upmile",
+  "appDescription": "Upmile helps the driver prepare the cabin before departure, preview today's route, and review the driving record.",
+  "version": "1.0.0",
+  "actionCalls": [
     {
-      "name": "start_routine",
-      "description": "출발 준비를 시작합니다. 차 안의 조명과 공조를 맞추고 오늘의 루틴 화면을 엽니다.",
-      "parameters": {}
+      "type": "function",
+      "function": {
+        "name": "START_ROUTINE",
+        "description": "Start the pre-departure routine that prepares the cabin.",
+        "parameters": { "type": "object", "properties": {}, "required": [] }
+      },
+      "component": "activity"
     },
     {
-      "name": "preview_today_route",
-      "description": "오늘 갈 길을 미리 달려 봅니다.",
-      "parameters": {
-        "destination": {
-          "type": "string",
-          "description": "목적지 이름. 예: 회사, 처음 가는 카페, 처가"
+      "type": "function",
+      "function": {
+        "name": "PREVIEW_TODAY_ROUTE",
+        "description": "Preview today's route to a chosen destination before driving.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "destination": {
+              "type": "string",
+              "description": "Destination identifier: commute is the workplace, cafe is the first-time cafe, inlaws is the in-laws home.",
+              "enum": ["commute", "cafe", "inlaws"]
+            }
+          },
+          "required": ["destination"]
         }
-      }
+      },
+      "component": "activity"
     },
     {
-      "name": "show_my_record",
-      "description": "내가 쌓아 온 주행 기록 화면을 엽니다.",
-      "parameters": {}
+      "type": "function",
+      "function": {
+        "name": "SHOW_MY_RECORD",
+        "description": "Show the driver's accumulated driving record.",
+        "parameters": { "type": "object", "properties": {}, "required": [] }
+      },
+      "component": "activity"
     }
   ]
 }

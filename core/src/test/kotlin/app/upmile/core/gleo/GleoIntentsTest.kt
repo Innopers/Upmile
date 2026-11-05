@@ -14,5 +14,10 @@ class GleoIntentsTest {
         assertEquals("preview", GleoIntents.routeFor("preview_today_route", mapOf("destination" to "달나라")))
         assertEquals("preview", GleoIntents.routeFor("preview_today_route", emptyMap()))
         assertNull(GleoIntents.routeFor("nope", emptyMap()))
+        assertEquals("routine", GleoIntents.routeFor("START_ROUTINE", emptyMap()))
+        assertEquals("record", GleoIntents.routeFor("SHOW_MY_RECORD", emptyMap()))
+        assertEquals("preview/cafe", GleoIntents.routeFor("PREVIEW_TODAY_ROUTE", mapOf("destination" to " cafe ")))
+        assertEquals("preview/commute", GleoIntents.routeFor("PREVIEW_TODAY_ROUTE", mapOf("destination" to "commute")))
+        assertNull(GleoIntents.routeFor("UNKNOWN_THING", emptyMap()))
     }
 }

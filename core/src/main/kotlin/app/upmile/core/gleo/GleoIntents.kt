@@ -6,7 +6,7 @@ object GleoIntents {
         "commute" to "commute", "cafe" to "cafe", "inlaws" to "inlaws",
     )
 
-    fun routeFor(action: String, params: Map<String, String>): String? = when (action) {
+    fun routeFor(action: String, params: Map<String, String>): String? = when (action.trim().lowercase()) {
         "start_routine" -> "routine"
         "preview_today_route" -> destinations[params["destination"]?.trim()]?.let { "preview/$it" } ?: "preview"
         "show_my_record" -> "record"
