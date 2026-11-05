@@ -1,0 +1,4 @@
+{"type":"FeatureCollection","features":[
+{"type":"Feature","properties":{"sgg":"41135","sggnm":"경기 성남시 분당구"},"geometry":{"type":"Polygon","coordinates":[[[127.10,37.39],[127.12,37.39],[127.12,37.40],[127.10,37.40],[127.10,37.39]]]}},
+{"type":"Feature","properties":{"sgg":"11680","sggnm":"서울 강남구"},"geometry":{"type":"MultiPolygon","coordinates":[[[[127.02,37.49],[127.04,37.49],[127.04,37.51],[127.02,37.51],[127.02,37.49]]]]}}
+]}
