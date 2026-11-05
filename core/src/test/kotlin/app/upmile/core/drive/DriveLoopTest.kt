@@ -40,6 +40,7 @@ private class InstantEngine : SpeechEngine {
     override val ready: StateFlow<Boolean> = MutableStateFlow(true)
     val spoken = mutableListOf<String>()
     override fun speak(text: String, onDone: () -> Unit) { spoken += text; onDone() }
+    override fun stop() {}
 }
 
 @OptIn(ExperimentalCoroutinesApi::class)

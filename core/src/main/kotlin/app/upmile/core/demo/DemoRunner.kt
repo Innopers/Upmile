@@ -23,6 +23,7 @@ import kotlinx.coroutines.flow.StateFlow
 object SilentEngine : SpeechEngine {
     override val ready: StateFlow<Boolean> = MutableStateFlow(true)
     override fun speak(text: String, onDone: () -> Unit) = onDone()
+    override fun stop() {}
 }
 
 /**

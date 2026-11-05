@@ -15,10 +15,16 @@ private class FakeEngine(ready: Boolean = true) : SpeechEngine {
     private val _ready = MutableStateFlow(ready)
     override val ready: StateFlow<Boolean> = _ready
     val spoken = mutableListOf<String>()
+    var stops = 0
+    var failOn: String? = null
     private val dones = mutableListOf<() -> Unit>()
     fun setReady(v: Boolean) { _ready.value = v }
     fun done(i: Int) = dones[i]()
-    override fun speak(text: String, onDone: () -> Unit) { spoken += text; dones += onDone }
+    override fun speak(text: String, onDone: () -> Unit) {
+        if (text == failOn) throw IllegalStateException("tts died")
+        spoken += text; dones += onDone
+    }
+    override fun stop() { stops++ }
 }
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -71,10 +77,19 @@ class QueuedVoiceTest {
         assertEquals(listOf("1", "2", "3"), engine.spoken)
     }
 
+    @Test fun throwingSpeak_countsAsDone_andTheQueueGoesOn() = runTest(UnconfinedTestDispatcher()) {
+        val engine = FakeEngine().apply { failOn = "a" }; val v = voice(engine)
+        v.say("a") // throws inside the engine; say() itself must return normally
+        assertTrue(v.lastError is IllegalStateException)
+        v.say("b")
+        assertEquals(listOf("b"), engine.spoken)
+    }
+
     @Test fun stop_clearsQueue_andIgnoresInFlightDone() = runTest(UnconfinedTestDispatcher()) {
         val engine = FakeEngine(); val v = voice(engine)
         v.say("a"); v.say("b")
         v.stop()
+        assertEquals(1, engine.stops)
         engine.done(0)
         advanceTimeBy(20_000)
         assertEquals(listOf("a"), engine.spoken)
