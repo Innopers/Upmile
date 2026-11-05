@@ -2,10 +2,11 @@ package app.upmile.core.location
 
 import app.upmile.core.model.GeoPoint
 import app.upmile.core.vehicle.ScenarioVehicleSignals
-import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.InternalCoroutinesApi
-import kotlinx.coroutines.flow.FlowCollector
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 
 interface LocationSource {
     val location: StateFlow<GeoPoint?>
@@ -13,16 +14,11 @@ interface LocationSource {
     fun stop()
 }
 
-/** Reads the position from the scenario replay's current frame; needs no permission, no scope. */
-@OptIn(ExperimentalCoroutinesApi::class, InternalCoroutinesApi::class)
-class ScenarioLocationSource(private val signals: ScenarioVehicleSignals) : LocationSource {
-    override val location: StateFlow<GeoPoint?> = object : StateFlow<GeoPoint?> {
-        override val value: GeoPoint? get() = signals.frame.value.let { GeoPoint(it.lat, it.lon) }
-        override val replayCache: List<GeoPoint?> get() = listOf(value)
-        override suspend fun collect(collector: FlowCollector<GeoPoint?>): Nothing =
-            signals.frame.collect { collector.emit(GeoPoint(it.lat, it.lon)) }
-    }
+/** Follows the scenario replay's current frame; needs no permission. start/stop are no-ops: the scenario owns the clock. */
+class ScenarioLocationSource(signals: ScenarioVehicleSignals, scope: CoroutineScope) : LocationSource {
+    override val location: StateFlow<GeoPoint?> =
+        signals.frame.map { GeoPoint(it.lat, it.lon) }.stateIn(scope, SharingStarted.Eagerly, null)
 
-    override fun start() {} // the scenario's own start() drives the frames
+    override fun start() {}
     override fun stop() {}
 }

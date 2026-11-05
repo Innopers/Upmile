@@ -23,6 +23,7 @@ class DriveLoop(
     private val lock = Any()
     private val events = mutableListOf<DriveEvent>()
     private val conditions = mutableSetOf<Condition>()
+    private var arrived = false
 
     fun tick(s: VehicleSnapshot, p: GeoPoint?) = synchronized(lock) {
         if (s.gear == Gear.D) {
@@ -34,9 +35,10 @@ class DriveLoop(
         for (e in tracker.onSample(s, p)) {
             events += e
             when (e) {
-                is DriveEvent.Approaching -> voice.say("${distanceText(e.metersAhead)} 앞, 아까 연습한 ${e.segment.title}이에요.", 10)
+                is DriveEvent.Approaching -> voice.say("${distanceText(e.metersAhead)} 앞, 아까 연습한 ${withCopula(e.segment.title)}.", 10)
                 is DriveEvent.Passed -> {}
-                is DriveEvent.Arrived -> {
+                is DriveEvent.Arrived -> if (!arrived) {
+                    arrived = true
                     val session = DriveSession(sessionId, events.toList(), conditions.toSet(), e.drivenM, regions.locate(e.at), clock())
                     store.save(ExperienceRules.apply(store.load(), session))
                     voice.say("도착했어요. 오늘 기록을 정리했어요.", 5)
@@ -45,9 +47,20 @@ class DriveLoop(
         }
     }
 
-    /** Nearest 100 m; "800m" below 1 km, "1.2km" from 1 km up. */
+    /** Nearest 100 m; "바로" under 50 m, "800m" below 1 km, "1km" / "1.2km" from 1 km up. */
     internal fun distanceText(m: Int): String {
         val r = (m / 100.0).roundToInt() * 100
-        return if (r >= 1000) "${r / 1000}.${r % 1000 / 100}km" else "${r}m"
+        return when {
+            m < 50 -> "바로"
+            r >= 1000 -> if (r % 1000 == 0) "${r / 1000}km" else "${r / 1000}.${r % 1000 / 100}km"
+            else -> "${r}m"
+        }
     }
+}
+
+/** word + 예요 after a Hangul syllable without final consonant, otherwise 이에요 (also for non-Hangul endings). */
+fun withCopula(word: String): String {
+    val c = word.lastOrNull()
+    val open = c != null && c in '가'..'힣' && (c - '가') % 28 == 0
+    return word + if (open) "예요" else "이에요"
 }

@@ -24,7 +24,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -66,7 +65,7 @@ class DriveLoopTest {
         val store = RecordStore(tmp.newFile("record.json")); val voice = RecordingVoice()
         val l = loop(voice, store)
         l.tick(snap(0), at(700.0)); l.tick(snap(200), at(805.0)); l.tick(snap(400), at(900.0))
-        assertEquals(listOf("1.2km 앞, 아까 연습한 고속도로 합류이에요." to 10), voice.said)
+        assertEquals(listOf("1.2km 앞, 아까 연습한 고속도로 합류예요." to 10), voice.said)
         l.tick(snap(600, wiper = true), at(2200.0)); l.tick(snap(800), at(2300.0))
         assertEquals(1, voice.said.size)
         l.tick(snap(1000, Gear.P), at(4000.0)) // 3.3 km net displacement, P, seated -> arrival
@@ -87,7 +86,14 @@ class DriveLoopTest {
 
     @Test fun distanceText_roundsToHundred() {
         val l = loop(RecordingVoice(), RecordStore(tmp.newFile("r.json")))
-        assertEquals("800m", l.distanceText(804)); assertEquals("1.2km", l.distanceText(1195)); assertEquals("1.0km", l.distanceText(950))
+        assertEquals("800m", l.distanceText(804)); assertEquals("1.2km", l.distanceText(1195)); assertEquals("1km", l.distanceText(950))
+        assertEquals("바로", l.distanceText(30))
+    }
+
+    @Test fun withCopula_picksByFinalConsonant() {
+        assertEquals("고속도로 합류예요", withCopula("고속도로 합류"))
+        assertEquals("판교역 사거리 좌회전이에요", withCopula("판교역 사거리 좌회전"))
+        assertEquals("IC이에요", withCopula("IC"))
     }
 
     @Test fun commuteScenario_endToEnd() = runTest(UnconfinedTestDispatcher()) {
@@ -95,7 +101,7 @@ class DriveLoopTest {
         val segs = SegmentFinder.find(route, true)
         var now = 0L
         val signals = ScenarioVehicleSignals(ScenarioJson.decode(readAsset("scenarios/commute_drive.json")), clock = { now })
-        val location = ScenarioLocationSource(signals)
+        val location = ScenarioLocationSource(signals, backgroundScope)
         val engine = InstantEngine()
         val store = RecordStore(tmp.newFile("record.json"))
         val loop = DriveLoop(DriveTracker(route, segs), QueuedVoice(engine, scope = backgroundScope), store,
