@@ -8,4 +8,9 @@ data class VehicleSnapshot(
     /** Active telltale ids; null means the telltale list is unavailable (e.g. permission denied). */
     val activeTelltales: List<String>?, val energyPercent: Int?, val rangeKm: Int?,
     val beltBuckled: Boolean?, val driverSeated: Boolean, val wiperOn: Boolean, val headlightsOn: Boolean,
-    val outsideTempC: Float?, val timestampMs: Long)
+    val outsideTempC: Float?,
+    /**
+     * Monotonic ms: `SystemClock.elapsedRealtime()` on the device, replay time in a scenario. Only differences
+     * are used, never wall-clock dates; a backwards jump just restarts the rate reference.
+     */
+    val timestampMs: Long)

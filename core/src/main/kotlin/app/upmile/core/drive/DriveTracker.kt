@@ -18,9 +18,11 @@ sealed interface DriveEvent {
 }
 
 /**
- * Tracks approach/pass/arrival for [segments] on [route]. Arrival needs >= 300 m NET displacement from the
- * first D position (jitter-proof); [DriveEvent.Arrived.drivenM] is the sum of straight-line hops between
- * consecutive D samples (off-route included).
+ * Tracks approach/pass/arrival for [segments] on [route]. Rates use [VehicleSnapshot.timestampMs] differences only.
+ * Arrival: the drive has started (a D sample was seen), the gear has just become P (from D, R or N), the driver is
+ * seated and the car is >= 300 m NET from the first D position (jitter-proof). On arrival every segment reached
+ * on-route but not yet passed is passed too; the garage ramp only if the car parked within 300 m of the route end.
+ * [DriveEvent.Arrived.drivenM] is the sum of straight-line hops between consecutive D samples (off-route included).
  */
 class DriveTracker(
     private val route: Route,
@@ -36,6 +38,7 @@ class DriveTracker(
     private var prevGear: Gear? = null
     private var prevPos: GeoPoint? = null
     private var firstDPos: GeoPoint? = null
+    private var reachedAlong = Double.NEGATIVE_INFINITY // furthest on-route along-route position so far
     private var drivenM = 0.0
     private var arrived = false
 
@@ -50,7 +53,7 @@ class DriveTracker(
         var advance = true
         if (r != null) {
             val dtMs = s.timestampMs - r.timestampMs
-            if (dtMs < MIN_DT_MS) advance = false
+            if (dtMs < MIN_DT_MS) advance = dtMs < 0 // near-duplicate: keep the reference; clock went back: restart it
             else if (onRoute && isHardMoment(r, s)) {
                 // attribute to the whole travelled interval so big position jumps can't skip the window
                 val ra = refAlong ?: along
@@ -61,6 +64,7 @@ class DriveTracker(
             }
         }
         if (onRoute) {
+            reachedAlong = maxOf(reachedAlong, along)
             for (seg in segments) {
                 val ahead = seg.distanceFromStartM - along
                 if (ahead > 0 && ahead <= approachM && approached.add(seg.id)) {
@@ -73,12 +77,14 @@ class DriveTracker(
         }
 
         val start = firstDPos
-        if (!arrived && prevGear == Gear.D && s.gear == Gear.P && s.driverSeated &&
-            start != null && distanceM(start, p) >= ARRIVE_MIN_M
+        if (!arrived && start != null && s.gear == Gear.P && prevGear != Gear.P && s.driverSeated &&
+            distanceM(start, p) >= ARRIVE_MIN_M
         ) {
             arrived = true
-            segments.filter { it.type == SegmentType.GARAGE_RAMP && passed.add(it.id) }
-                .forEach { out += DriveEvent.Passed(it, it.id in hardMoment) }
+            val atEnd = distanceM(p, route.polyline.last()) <= ARRIVE_MIN_M
+            segments.filter {
+                (if (it.type == SegmentType.GARAGE_RAMP) atEnd else reachedAlong >= it.distanceFromStartM) && passed.add(it.id)
+            }.forEach { out += DriveEvent.Passed(it, it.id in hardMoment) }
             out += DriveEvent.Arrived(p, drivenM.roundToInt())
         }
         if (advance) {

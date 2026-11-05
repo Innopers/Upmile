@@ -15,8 +15,8 @@ class DriveTrackerTest {
     private val mPerDeg = 111_195.0
     private fun at(m: Double, offLon: Double = 0.0) = GeoPoint(37.0 + m / mPerDeg, 127.0 + offLon)
     private val route = Route("r", "r", listOf(at(0.0), at(5000.0)), emptyList(), 5000, 600)
-    private val merge = HardSegment("merge", SegmentType.HIGHWAY_MERGE, "m", at(2000.0), 2000, emptyMap())
-    private val ramp = HardSegment("ramp", SegmentType.GARAGE_RAMP, "g", at(4900.0), 4900, emptyMap())
+    private val merge = HardSegment("merge", SegmentType.HIGHWAY_MERGE, "m", "p", at(2000.0), 2000, emptyMap())
+    private val ramp = HardSegment("ramp", SegmentType.GARAGE_RAMP, "g", "p", at(4900.0), 4900, emptyMap())
 
     private fun snap(t: Long, speed: Float = 10f, brake: Boolean = false, steer: Float = 0f,
                      gear: Gear = Gear.D, seated: Boolean = true) =
@@ -130,6 +130,15 @@ class DriveTrackerTest {
         assertEquals(false, ev.hadHardMoment)
     }
 
+    @Test fun clockGoingBack_restartsReference_insteadOfFreezing() {
+        val tr = DriveTracker(route, listOf(merge))
+        tr.onSample(snap(10_000, speed = 15f), at(1990.0))
+        tr.onSample(snap(0, speed = 15f, brake = true), at(2000.0)) // replay restarted / clock reset
+        tr.onSample(snap(1000, speed = 10f, brake = true), at(2010.0)) // 5 m/s^2 against the new reference
+        val ev = tr.onSample(snap(1200), at(2200.0)).filterIsInstance<DriveEvent.Passed>().single()
+        assertEquals(true, ev.hadHardMoment)
+    }
+
     @Test fun nonPositiveTimeDelta_isIgnored() {
         val tr = DriveTracker(route, listOf(merge))
         tr.onSample(snap(1000, speed = 15f, brake = true), at(2000.0))
@@ -138,11 +147,12 @@ class DriveTrackerTest {
         assertEquals(false, ev.hadHardMoment)
     }
 
-    private fun drive(tr: DriveTracker, seated: Boolean, endM: Double = 4950.0): List<DriveEvent> {
+    private fun drive(tr: DriveTracker, seated: Boolean, endM: Double = 4950.0, via: Gear? = null): List<DriveEvent> {
         var t = 0L
         var m = 0.0
         while (m < endM) { tr.onSample(snap(t), at(m)); t += 200; m += 20.0 }
-        return tr.onSample(snap(t, gear = Gear.P, seated = seated), at(endM))
+        val out = via?.let { tr.onSample(snap(t, speed = 0f, gear = it), at(endM)).also { t += 200 } }.orEmpty()
+        return out + tr.onSample(snap(t, gear = Gear.P, seated = seated), at(endM))
     }
 
     @Test fun arrived_requiresDtoP_driverSeated_andMoved300m() {
@@ -166,7 +176,7 @@ class DriveTrackerTest {
     }
 
     @Test fun ramp_notPassedByDistance() {
-        val r2 = HardSegment("ramp2", SegmentType.GARAGE_RAMP, "g", at(4800.0), 4800, emptyMap())
+        val r2 = HardSegment("ramp2", SegmentType.GARAGE_RAMP, "g", "p", at(4800.0), 4800, emptyMap())
         val tr = DriveTracker(route, listOf(r2))
         tr.onSample(snap(0), at(4700.0))
         assertTrue(tr.onSample(snap(200), at(4990.0)).none { it is DriveEvent.Passed })
@@ -177,12 +187,34 @@ class DriveTrackerTest {
         assertTrue(drive(tr, seated = true, endM = 200.0).isEmpty())
     }
 
-    @Test fun arrived_notFromNonD() {
+    @Test fun arrived_notWithoutDriveStarted() {
         val tr = DriveTracker(route, listOf(ramp))
         var t = 0L
         var m = 0.0
-        while (m < 1000) { tr.onSample(snap(t, gear = if (m < 500) Gear.D else Gear.N), at(m)); t += 200; m += 20.0 }
-        assertTrue(tr.onSample(snap(t, gear = Gear.P), at(1000.0)).isEmpty())
+        while (m < 1000) { tr.onSample(snap(t, gear = Gear.N), at(m)); t += 200; m += 20.0 }
+        assertTrue(tr.onSample(snap(t, gear = Gear.P), at(1000.0)).none { it is DriveEvent.Arrived })
+    }
+
+    @Test fun arrived_afterReverseOrNeutral_beforePark() {
+        for (via in listOf(Gear.R, Gear.N)) {
+            val ev = drive(DriveTracker(route, listOf(ramp)), seated = true, via = via)
+            assertEquals(via.name, 1, ev.count { it is DriveEvent.Arrived })
+            assertTrue(via.name, ev.any { it is DriveEvent.Passed && it.segment.id == "ramp" })
+        }
+    }
+
+    @Test fun parkingMidRoute_arrives_butRampIsNotPassed() {
+        val ev = drive(DriveTracker(route, listOf(ramp)), seated = true, endM = 2500.0)
+        assertEquals(1, ev.count { it is DriveEvent.Arrived })
+        assertTrue(ev.none { it is DriveEvent.Passed })
+    }
+
+    @Test fun segmentRightBeforeDestination_isPassedOnArrival() {
+        val left = HardSegment("left", SegmentType.MULTILANE_LEFT, "l", "p", at(4880.0), 4880, emptyMap())
+        val later = HardSegment("later", SegmentType.MULTILANE_LEFT, "l", "p", at(4990.0), 4990, emptyMap()) // not reached
+        val ev = drive(DriveTracker(route, listOf(left, later, ramp)), seated = true) // parks at 4950
+        assertEquals(listOf("left", "ramp"), ev.filterIsInstance<DriveEvent.Passed>().map { it.segment.id })
+        assertTrue(ev.last() is DriveEvent.Arrived)
     }
 
     @Test fun arrived_neverFiresWhenDriverNotSeated() {

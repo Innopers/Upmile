@@ -20,11 +20,12 @@ object ExperienceRules {
         var revisit = record.revisitSegments
         val place = session.arrivalRegion?.name ?: ""
 
-        fun earn(type: ExperienceType, placeName: String = place, newStar: Boolean = false) {
+        // upgradable cards gain a star when this drive adds a condition the card has not seen yet
+        fun earn(type: ExperienceType, placeName: String = place, upgradable: Boolean = false) {
             val old = cards.firstOrNull { it.type == type }
             cards = when {
                 old == null -> cards + ExperienceCard(type, 1, session.endedAtMs, placeName, session.conditions)
-                newStar -> cards.map {
+                upgradable && !old.conditions.containsAll(session.conditions) -> cards.map {
                     if (it.type == type) it.copy(stars = minOf(3, it.stars + 1), conditions = it.conditions + session.conditions) else it
                 }
                 else -> cards
@@ -35,11 +36,11 @@ object ExperienceRules {
         for (e in session.events) {
             if (e !is DriveEvent.Passed) continue
             val seg = e.segment
-            val newCombo = stamps.none { it.type == seg.type && it.conditions == session.conditions }
-            val hadType = stamps.any { it.type == seg.type }
-            segmentCard[seg.type]?.let { earn(it, seg.title, newStar = hadType && newCombo) }
-            stamps = stamps + SegmentStamp(seg.title, seg.type, session.conditions, session.endedAtMs)
-            if (e.hadHardMoment && seg.title !in revisit) revisit = revisit + seg.title
+            segmentCard[seg.type]?.let { earn(it, seg.place, upgradable = true) } // the experience counts rehearsed or not
+            if (seg.id in session.rehearsedIds) {
+                stamps = stamps + SegmentStamp(seg.id, seg.title, seg.place, seg.type, session.conditions, session.endedAtMs)
+            }
+            if (e.hadHardMoment && seg.id !in revisit) revisit = revisit + seg.id
         }
         session.conditions.forEach {
             earn(when (it) { Condition.RAIN -> ExperienceType.RAIN; Condition.NIGHT -> ExperienceType.NIGHT; Condition.FREEZING -> ExperienceType.FREEZING })

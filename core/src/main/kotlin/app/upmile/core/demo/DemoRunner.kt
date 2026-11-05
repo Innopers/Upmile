@@ -2,12 +2,13 @@ package app.upmile.core.demo
 
 import app.upmile.core.drive.DriveLoop
 import app.upmile.core.drive.DriveTracker
-import app.upmile.core.location.ScenarioLocationSource
+import app.upmile.core.model.GeoPoint
 import app.upmile.core.record.Record
 import app.upmile.core.record.RecordStore
 import app.upmile.core.record.RegionLocator
+import app.upmile.core.route.AssetRouteRepository
 import app.upmile.core.route.SegmentFinder
-import app.upmile.core.route.TmapRouteParser
+import app.upmile.core.vehicle.ScenarioFrame
 import app.upmile.core.vehicle.ScenarioJson
 import app.upmile.core.vehicle.ScenarioVehicleSignals
 import app.upmile.core.voice.QueuedVoice
@@ -18,6 +19,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.runBlocking
 
 /** Always ready, completes immediately: for headless runs with no TTS. */
 object SilentEngine : SpeechEngine {
@@ -26,36 +28,55 @@ object SilentEngine : SpeechEngine {
     override fun stop() {}
 }
 
+private const val DEMO_DESTINATION = "commute"
+
 /**
- * Replays the recorded commute drive through the real pipeline and returns the resulting record.
+ * The one 체험 모드 runner, shared by the app and headless tests. Replays the recorded commute drive through the real
+ * pipeline in [stepMs] replay steps and returns the resulting record. Each step reads the scenario frame ONCE and
+ * hands that frame's snapshot and position together to the loop, so they can never come from different frames.
+ * [pace] runs after every step with [stepMs] (the app passes `{ delay((it / timeScale).toLong()) }`); [onFrame] lets
+ * the app follow the replayed vehicle (e.g. show the gear-D cover).
  * Callers must pass a [store] backed by its own file (`record_demo.json`) so the demo never touches the real record.
- * Headless: steps every 200 ms frame without sleeping, so [timeScale] only matters to UI pacing (unused here).
+ * The spec §9 story previews all commute segments before driving, so all of them count as rehearsed.
  */
-@Suppress("UNUSED_PARAMETER")
-fun runDemoHeadless(
+suspend fun runDemo(
     readAsset: (String) -> String,
-    timeScale: Float,
     store: RecordStore,
     speech: SpeechEngine = SilentEngine,
+    stepMs: Long = 200,
+    pace: suspend (Long) -> Unit = {},
+    onFrame: (ScenarioFrame) -> Unit = {},
 ): Record {
-    val route = TmapRouteParser.parse("commute", "commute", readAsset("routes/commute.json"))
+    val routes = AssetRouteRepository(readAsset)
+    val route = routes.route(DEMO_DESTINATION)
+    val segments = SegmentFinder.find(route, routes.destinations().first { it.id == DEMO_DESTINATION }.hasGarage)
     val frames = ScenarioJson.decode(readAsset("scenarios/commute_drive.json"))
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
     try {
         var now = 0L
         val signals = ScenarioVehicleSignals(frames, clock = { now })
-        val location = ScenarioLocationSource(signals, scope)
         val loop = DriveLoop(
-            DriveTracker(route, SegmentFinder.find(route, destinationHasGarage = true)),
-            QueuedVoice(speech, scope = scope), store, RegionLocator(readAsset("regions/sigungu.geojson")), "demo-commute",
-        ) { now }
+            DriveTracker(route, segments), QueuedVoice(speech, scope = scope), store,
+            RegionLocator(readAsset("regions/sigungu.geojson")), "demo-commute", segments.map { it.id }.toSet(),
+            System::currentTimeMillis,
+        )
         signals.start()
         val end = frames.last().snapshot.timestampMs
         while (now <= end) {
             signals.tick()
-            loop.tick(signals.snapshots.value, location.location.value)
-            now += 200
+            val f = signals.frame.value
+            onFrame(f)
+            loop.tick(f.snapshot, GeoPoint(f.lat, f.lon))
+            pace(stepMs)
+            now += stepMs
         }
     } finally { scope.cancel() }
-    return store.load()
+    return store.records.value
 }
+
+/** [runDemo] without pacing, for tests and tools. */
+fun runDemoHeadless(
+    readAsset: (String) -> String,
+    store: RecordStore,
+    speech: SpeechEngine = SilentEngine,
+): Record = runBlocking { runDemo(readAsset, store, speech) }
