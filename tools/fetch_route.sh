@@ -5,7 +5,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 [ $# -eq 5 ] || { echo "usage: $0 <id> <startLat> <startLon> <endLat> <endLon>" >&2; exit 1; }
-KEY=$(grep '^tmap.appKey=' local.properties | cut -d= -f2-)
+KEY=$(grep '^tmap.appKey=' local.properties | cut -d= -f2- || true)
 [ -n "$KEY" ] || { echo "tmap.appKey missing in local.properties" >&2; exit 1; }
 curl -sf -X POST "https://apis.openapi.sk.com/tmap/routes?version=1" \
   -H "appKey: $KEY" -H "Content-Type: application/json" \

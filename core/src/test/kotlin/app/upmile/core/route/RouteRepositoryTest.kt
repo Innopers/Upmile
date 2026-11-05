@@ -25,4 +25,12 @@ class RouteRepositoryTest {
             assertTrue(d.id, SegmentFinder.find(r, d.hasGarage).isNotEmpty())
         }
     }
+
+    @Test fun total_distance_matches_polyline_length() {
+        for (d in repo.destinations()) {
+            val r = repo.route(d.id)
+            val len = r.polyline.zipWithNext().sumOf { (a, b) -> distanceM(a, b) }
+            assertTrue("${d.id} total=${r.totalDistanceM} len=$len", Math.abs(r.totalDistanceM - len) <= len * 0.01)
+        }
+    }
 }
