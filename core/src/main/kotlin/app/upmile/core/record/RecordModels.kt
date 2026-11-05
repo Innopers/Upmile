@@ -15,8 +15,12 @@ enum class ExperienceType {
 @Serializable
 data class ExperienceCard(val type: ExperienceType, val stars: Int, val firstAtMs: Long, val place: String, val conditions: Set<Condition>)
 
+/** A rehearsed segment actually driven. Keyed by [segmentId]; [title] and [place] are kept for display. */
 @Serializable
-data class SegmentStamp(val segmentTitle: String, val type: SegmentType, val conditions: Set<Condition>, val atMs: Long)
+data class SegmentStamp(
+    val segmentId: String, val title: String, val place: String, val type: SegmentType,
+    val conditions: Set<Condition>, val atMs: Long,
+)
 
 @Serializable
 data class Region(val code: String, val name: String)
@@ -26,6 +30,7 @@ data class Record(
     val cards: List<ExperienceCard>,
     val stamps: List<SegmentStamp>,
     val regions: List<Region>,
+    /** Segment ids ([app.upmile.core.model.HardSegment.id]) to rehearse again next time. */
     val revisitSegments: List<String>,
     val processedSessionIds: Set<String>,
     val unseenSessionId: String? = null,
@@ -42,4 +47,6 @@ data class DriveSession(
     val drivenM: Int,
     val arrivalRegion: Region?,
     val endedAtMs: Long,
+    /** Segment ids rehearsed before this drive; only these earn a [SegmentStamp]. */
+    val rehearsedIds: Set<String>,
 )

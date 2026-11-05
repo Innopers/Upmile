@@ -10,7 +10,7 @@ import kotlin.math.hypot
 
 class RoadTemplatesTest {
     private fun seg(t: SegmentType, p: Map<String, Double>) =
-        HardSegment("s", t, "구간", GeoPoint(37.0, 127.0), 0, p)
+        HardSegment("s", t, "구간", "장소", GeoPoint(37.0, 127.0), 0, p)
 
     @Test fun merge_hasMainLanesRampAndCuesInOrder() {
         val s = RoadTemplates.build(seg(SegmentType.HIGHWAY_MERGE, mapOf("lanes" to 2.0, "accelLaneM" to 180.0)))

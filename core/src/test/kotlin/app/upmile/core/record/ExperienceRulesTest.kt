@@ -10,9 +10,10 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ExperienceRulesTest {
-    private fun seg(t: SegmentType, title: String) = HardSegment(title, t, title, GeoPoint(0.0, 0.0), 0, emptyMap())
-    private val merge = seg(SegmentType.HIGHWAY_MERGE, "경부선 합류")
-    private val left = seg(SegmentType.MULTILANE_LEFT, "대로 좌회전")
+    private fun seg(id: String, t: SegmentType, place: String) = HardSegment(id, t, t.name, place, GeoPoint(0.0, 0.0), 0, emptyMap())
+    private val merge = seg("r:highway_merge:1", SegmentType.HIGHWAY_MERGE, "양재IC 진입")
+    private val left = seg("r:multilane_left:2", SegmentType.MULTILANE_LEFT, "판교역 사거리")
+    private val otherLeft = seg("r:multilane_left:5", SegmentType.MULTILANE_LEFT, "서현역 사거리")
     private val bundang = Region("41135", "경기 성남시 분당구")
     private val gangnam = Region("11680", "서울 강남구")
     private val suwon = Region("41111", "경기 수원시 장안구")
@@ -20,7 +21,8 @@ class ExperienceRulesTest {
     private fun session(
         id: String = "S1", events: List<app.upmile.core.drive.DriveEvent> = emptyList(),
         conditions: Set<Condition> = emptySet(), drivenM: Int = 5_000, region: Region? = null,
-    ) = DriveSession(id, events, conditions, drivenM, region, 1_000L)
+        rehearsed: Set<String> = setOf(merge.id, left.id, otherLeft.id),
+    ) = DriveSession(id, events, conditions, drivenM, region, 1_000L, rehearsed)
 
     private fun types(r: Record) = r.cards.map { it.type }.toSet()
 
@@ -28,12 +30,25 @@ class ExperienceRulesTest {
         val r = ExperienceRules.apply(Record.EMPTY, session(events = listOf(Passed(merge, false)), conditions = setOf(Condition.RAIN)))
         assertTrue(r.cards.any { it.type == ExperienceType.HIGHWAY_MERGE } && r.cards.any { it.type == ExperienceType.RAIN })
         assertEquals(setOf(Condition.RAIN), r.stamps.single().conditions)
+        assertEquals(merge.id to "양재IC 진입", r.stamps.single().let { it.segmentId to it.place })
+    }
+
+    @Test fun unrehearsedPass_earnsCard_butNoStamp() {
+        val r = ExperienceRules.apply(Record.EMPTY, session(events = listOf(Passed(merge, false), Passed(left, true)), rehearsed = setOf(left.id)))
+        assertTrue(r.cards.any { it.type == ExperienceType.HIGHWAY_MERGE && it.place == "양재IC 진입" })
+        assertEquals(listOf(left.id), r.stamps.map { it.segmentId })
+    }
+
+    @Test fun twoLeftTurns_keepSeparateStampsAndRevisits() {
+        val r = ExperienceRules.apply(Record.EMPTY, session(events = listOf(Passed(left, true), Passed(otherLeft, true))))
+        assertEquals(listOf(left.id, otherLeft.id), r.revisitSegments)
+        assertEquals(listOf("판교역 사거리", "서현역 사거리"), r.stamps.map { it.place })
     }
 
     @Test fun hardMoment_addsRevisit_notPenalty() {
         val r = ExperienceRules.apply(Record.EMPTY, session(events = listOf(Passed(left, true))))
         assertTrue(r.cards.any { it.type == ExperienceType.MULTILANE_LEFT })
-        assertEquals(listOf(left.title), r.revisitSegments)
+        assertEquals(listOf(left.id), r.revisitSegments)
     }
 
     @Test fun sameExperienceUnderNewCondition_upgradesStars_max3() {
@@ -49,6 +64,16 @@ class ExperienceRulesTest {
         assertEquals(3, stars())
         r = ExperienceRules.apply(r, session("e", ev, setOf(Condition.FREEZING)))
         assertEquals(3, stars())
+    }
+
+    @Test fun starUpgrade_needsANewCondition_evenWithoutRehearsal() {
+        val ev = listOf(Passed(merge, false))
+        var r = ExperienceRules.apply(Record.EMPTY, session("a", ev, setOf(Condition.RAIN), rehearsed = emptySet()))
+        r = ExperienceRules.apply(r, session("b", ev, rehearsed = emptySet())) // easier: no rain
+        assertEquals(1, r.cards.single { it.type == ExperienceType.HIGHWAY_MERGE }.stars)
+        r = ExperienceRules.apply(r, session("c", ev, setOf(Condition.NIGHT), rehearsed = emptySet()))
+        assertEquals(2, r.cards.single { it.type == ExperienceType.HIGHWAY_MERGE }.stars)
+        assertTrue(r.stamps.isEmpty())
     }
 
     @Test fun sameSessionTwice_isIdempotent() {

@@ -47,11 +47,14 @@ object SegmentFinder {
         else -> emptyMap()
     }
 
-    private fun build(route: Route, g: GuidePoint, t: SegmentType) =
-        HardSegment("${t.name.lowercase()}-${g.index}", t, title(t), g.point, alongRouteM(route, g.point).toInt(), params(t))
+    private fun build(route: Route, g: GuidePoint, t: SegmentType) = HardSegment(
+        "${route.id}:${t.name.lowercase()}:${g.index}", t, title(t), g.description, g.point,
+        alongRouteM(route, g.point).toInt(), params(t),
+    )
 
     private fun garage(route: Route): HardSegment {
         val end = route.polyline.last()
-        return HardSegment("garage_ramp-end", GARAGE_RAMP, title(GARAGE_RAMP), end, alongRouteM(route, end).toInt(), params(GARAGE_RAMP))
+        return HardSegment("${route.id}:garage_ramp:end", GARAGE_RAMP, title(GARAGE_RAMP), route.name, end,
+            alongRouteM(route, end).toInt(), params(GARAGE_RAMP))
     }
 }

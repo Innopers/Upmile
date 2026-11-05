@@ -13,13 +13,18 @@ class ScenarioVehicleSignals(
     private val clock: () -> Long,
     private val scope: CoroutineScope? = null,
 ) : VehicleSignals {
-    init { require(frames.isNotEmpty()) { "scenario has no frames" } }
+    init {
+        require(frames.isNotEmpty()) { "scenario has no frames" }
+        require(frames.zipWithNext().all { (a, b) -> a.snapshot.timestampMs < b.snapshot.timestampMs }) {
+            "scenario timestamps must be strictly ascending"
+        }
+    }
 
     private val _frame = MutableStateFlow(frames.first())
     val frame: StateFlow<ScenarioFrame> = _frame
     private val _snapshots = MutableStateFlow(frames.first().snapshot)
     override val snapshots: StateFlow<VehicleSnapshot> = _snapshots
-    private var startMs: Long? = null
+    @Volatile private var startMs: Long? = null // start() and tick() may run on different threads
     private var job: Job? = null
 
     override fun start() {

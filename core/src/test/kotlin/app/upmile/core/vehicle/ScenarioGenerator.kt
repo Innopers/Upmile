@@ -3,14 +3,14 @@ package app.upmile.core.vehicle
 import app.upmile.core.model.GeoPoint
 import app.upmile.core.model.Route
 import app.upmile.core.model.SegmentType
+import app.upmile.core.route.AssetRouteRepository
 import app.upmile.core.route.SegmentFinder
-import app.upmile.core.route.TmapRouteParser
 import app.upmile.core.route.alongRouteM
 import app.upmile.core.route.distanceM
 import kotlin.math.PI
 import kotlin.math.sin
 
-/** Builds assets/scenarios/commute_drive.json from assets/routes/commute.json. Run: GEN_SCENARIO=1 ./gradlew :core:test --tests '*ScenarioGenTest' */
+/** Builds assets/scenarios/commute_drive.json from assets/routes/commute.json. Run: GEN_SCENARIO=1 ./gradlew :core:test --tests '*regenerate*' */
 object ScenarioGenerator {
     const val STEP = 200L
     const val P_START = 50      // 10 s parked at the origin
@@ -18,7 +18,7 @@ object ScenarioGenerator {
     const val HOLD = 70         // position pinned at the end while slowing to 0
     const val P_END = 25        // 5 s parked at the destination
 
-    fun load(readAsset: (String) -> String): Route = TmapRouteParser.parse("commute", "commute", readAsset("routes/commute.json"))
+    fun load(readAsset: (String) -> String): Route = AssetRouteRepository(readAsset).route("commute")
 
     fun pointAt(route: Route, alongM: Double): GeoPoint {
         var rem = alongM
@@ -44,8 +44,13 @@ object ScenarioGenerator {
         val speed = DoubleArray(DRIVE) { i ->
             val cruise = 15.0 + 4.0 * sin(2 * PI * i / 160.0)
             val stop = (DRIVE - 1 - i) * 0.3                 // linear slow-down, 1.5 m/s^2
-            // one-step dip of 1.0 m/s (5 m/s^2) at the left turn, recovering at +0.4 m/s per step
-            val dip = if (i >= h) (1.0 - 0.4 * (i - h)).coerceAtLeast(0.0) else 0.0
+            // hard brake at the left turn: -1.0 m/s per step (5 m/s^2) for 3 steps, so 400 ms sampling of either
+            // phase still sees it; then recovering at +0.4 m/s per step
+            val dip = when {
+                i < h -> 0.0
+                i <= h + 2 -> 1.0 * (i - h + 1)
+                else -> (3.0 - 0.4 * (i - h - 2)).coerceAtLeast(0.0)
+            }
             minOf(cruise, stop) - dip
         }
 
@@ -56,7 +61,7 @@ object ScenarioGenerator {
         repeat(P_START) { out += ScenarioFrame(snap(it * STEP, Gear.P, 0.0, false, 0.0), origin.lat, origin.lon) }
         for (i in 0 until DRIVE) {
             val p = pointAt(route, along[i])
-            val brake = i == h || i >= DRIVE - 40
+            val brake = i in h..h + 2 || i >= DRIVE - 40
             val steer = 4.0 * sin(2 * PI * i / 120.0)
             out += ScenarioFrame(snap((P_START + i) * STEP, Gear.D, speed[i], brake, steer), p.lat, p.lon)
         }

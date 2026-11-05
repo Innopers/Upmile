@@ -6,6 +6,7 @@ import app.upmile.core.model.GeoPoint
 import app.upmile.core.model.SegmentType
 import app.upmile.core.route.SegmentFinder
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
@@ -34,12 +35,19 @@ class ScenarioVehicleSignalsTest {
         assertTrue(frames.last().snapshot.timestampMs <= 150_000)
     }
 
-    @Test fun scenario_hasExactlyOneHardBrakeStep() {
+    @Test fun timestamps_mustAscend() {
+        assertThrows(IllegalArgumentException::class.java) {
+            ScenarioVehicleSignals(listOf(frame(200, Gear.P), frame(200, Gear.D)), clock = { 0L })
+        }
+    }
+
+    @Test fun scenario_hasOneHardBrakeRun_ofAtLeast3BrakedSteps() {
         val d = frames().map { it.snapshot }.filter { it.gear == Gear.D }
         val steps = d.zipWithNext()
         val decel = steps.map { (a, b) -> (a.speedMps - b.speedMps) / ((b.timestampMs - a.timestampMs) / 1000f) }
-        assertEquals(1, decel.count { it >= 2.9f })
-        assertTrue(steps.zip(decel).single { it.second >= 2.9f }.first.second.brakePressed)
+        val hard = decel.indices.filter { decel[it] >= 2.9f }
+        assertTrue(hard.toString(), hard.size >= 3 && hard.last() - hard.first() == hard.size - 1) // one consecutive run
+        assertTrue(hard.all { steps[it].second.brakePressed })
         assertTrue(decel.max() >= 3.5f)
         assertTrue(steps.all { (a, b) -> abs(b.steeringDeg - a.steeringDeg) / 0.2f < 90f })
         assertTrue(d.all { it.speedMps <= 22f })
@@ -57,6 +65,18 @@ class ScenarioVehicleSignalsTest {
         val passed = events.filterIsInstance<DriveEvent.Passed>().associate { it.segment.id to it.hadHardMoment }
         assertEquals(true, passed[left]); assertEquals(false, passed[merge]); assertTrue(garage in passed)
         assertEquals(1, events.count { it is DriveEvent.Arrived })
+    }
+
+    @Test fun hardBrake_survivesDroppingEveryOtherFrame_inBothPhases() {
+        val route = ScenarioGenerator.load(::readAsset)
+        val segs = SegmentFinder.find(route, true)
+        val left = segs.first { it.type == SegmentType.MULTILANE_LEFT }.id
+        for (phase in 0..1) {
+            val tracker = DriveTracker(route, segs)
+            val events = frames().filterIndexed { i, _ -> i % 2 == phase }.flatMap { tracker.onSample(it.snapshot, GeoPoint(it.lat, it.lon)) }
+            val pass = events.filterIsInstance<DriveEvent.Passed>().single { it.segment.id == left }
+            assertEquals("phase $phase", true, pass.hadHardMoment)
+        }
     }
 
     /** Regenerates the committed asset: GEN_SCENARIO=1 ./gradlew :core:test --tests '*regenerate*' */

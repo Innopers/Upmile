@@ -6,7 +6,7 @@ import kotlinx.serialization.json.Json
 
 data class ScenarioFrame(val snapshot: VehicleSnapshot, val lat: Double, val lon: Double)
 
-/** One file feeds the app (ScenarioLocationSource) and tools/demo.sh. Flat DTO keeps the JSON greppable. */
+/** One file feeds the app (runDemo) and tools/demo.sh. Flat DTO keeps the JSON greppable. */
 object ScenarioJson {
     private val json = Json { prettyPrint = false }
 
