@@ -62,6 +62,39 @@ class DriveTrackerTest {
         assertTrue(brakeRun(200))
     }
 
+    @Test fun hardBrake_threshold_2_5_withBrakeIsNotHard() {
+        val tr = DriveTracker(route, listOf(merge))
+        tr.onSample(snap(0, speed = 15f, brake = true), at(2000.0))
+        tr.onSample(snap(1000, speed = 12.5f, brake = true), at(2010.0))
+        val ev = tr.onSample(snap(1200), at(2200.0)).filterIsInstance<DriveEvent.Passed>().single()
+        assertEquals(false, ev.hadHardMoment)
+    }
+
+    @Test fun nearDuplicateSample_dt10ms_isNotHard() {
+        val tr = DriveTracker(route, listOf(merge))
+        tr.onSample(snap(0, speed = 15f, brake = true), at(2000.0))
+        tr.onSample(snap(10, speed = 14.7f, brake = true), at(2000.1))
+        val ev = tr.onSample(snap(200, speed = 14.7f), at(2200.0)).filterIsInstance<DriveEvent.Passed>().single()
+        assertEquals(false, ev.hadHardMoment)
+    }
+
+    // spike between two samples whose along positions are [from, to] (relative to merge start 2000)
+    private fun spikeVerdict(from: Double, to: Double): Boolean {
+        val tr = DriveTracker(route, listOf(merge))
+        val evs = tr.onSample(snap(0, speed = 15f, brake = true), at(2000.0 + from) ) +
+            tr.onSample(snap(1000, speed = 10f, brake = true), at(2000.0 + to)) +
+            tr.onSample(snap(1200), at(2300.0))
+        return evs.filterIsInstance<DriveEvent.Passed>().single().hadHardMoment
+    }
+
+    @Test fun hardMoment_windowEdges_useTravelledInterval() {
+        assertEquals(false, spikeVerdict(-300.0, -51.0))
+        assertEquals(true, spikeVerdict(-300.0, -49.0))
+        assertEquals(true, spikeVerdict(149.0, 200.0))
+        assertEquals(false, spikeVerdict(151.0, 200.0))
+        assertEquals(true, spikeVerdict(-200.0, 250.0)) // jump straddles whole window
+    }
+
     @Test fun hardBrake_notWithoutBrakePedal() {
         val tr = DriveTracker(route, listOf(merge))
         tr.onSample(snap(0, speed = 15f), at(2000.0))
@@ -109,7 +142,7 @@ class DriveTrackerTest {
         var t = 0L
         var m = 0.0
         while (m < endM) { tr.onSample(snap(t), at(m)); t += 200; m += 20.0 }
-        return tr.onSample(snap(t, gear = Gear.P, seated = seated), at(endM)).let { it } // prev sample is D
+        return tr.onSample(snap(t, gear = Gear.P, seated = seated), at(endM))
     }
 
     @Test fun arrived_requiresDtoP_driverSeated_andMoved300m() {
@@ -120,6 +153,23 @@ class DriveTrackerTest {
         val a = ev[1] as DriveEvent.Arrived
         assertEquals(4950.0, a.drivenM.toDouble(), 30.0)
         assertTrue(tr.onSample(snap(99_999, gear = Gear.P), at(4950.0)).isEmpty())
+    }
+
+    @Test fun arrived_notFromGpsJitterWhileStopped() {
+        val tr = DriveTracker(route, listOf(ramp))
+        var t = 0L
+        repeat(300) { i ->
+            val j = if (i % 2 == 0) 3.0 else -3.0
+            tr.onSample(snap(t, speed = 0f), at(1000.0 + j)); t += 200
+        }
+        assertTrue(tr.onSample(snap(t, gear = Gear.P), at(1000.0)).none { it is DriveEvent.Arrived })
+    }
+
+    @Test fun ramp_notPassedByDistance() {
+        val r2 = HardSegment("ramp2", SegmentType.GARAGE_RAMP, "g", at(4800.0), 4800, emptyMap())
+        val tr = DriveTracker(route, listOf(r2))
+        tr.onSample(snap(0), at(4700.0))
+        assertTrue(tr.onSample(snap(200), at(4990.0)).none { it is DriveEvent.Passed })
     }
 
     @Test fun arrived_notBefore300mMoved() {

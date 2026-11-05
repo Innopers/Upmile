@@ -18,8 +18,9 @@ sealed interface DriveEvent {
 }
 
 /**
- * Tracks approach/pass/arrival for [segments] on [route]. Driven distance is the sum of straight-line
- * hops between consecutive samples (off-route samples included), counted from the first D sample.
+ * Tracks approach/pass/arrival for [segments] on [route]. Arrival needs >= 300 m NET displacement from the
+ * first D position (jitter-proof); [DriveEvent.Arrived.drivenM] is the sum of straight-line hops between
+ * consecutive D samples (off-route included).
  */
 class DriveTracker(
     private val route: Route,
@@ -30,24 +31,36 @@ class DriveTracker(
     private val approached = mutableSetOf<String>()
     private val passed = mutableSetOf<String>()
     private val hardMoment = mutableSetOf<String>()
-    private var prev: VehicleSnapshot? = null
+    private var ref: VehicleSnapshot? = null // reference for rate maths; not advanced on dt < MIN_DT_MS
+    private var refAlong: Double? = null // along-route at ref, null if it was off-route
+    private var prevGear: Gear? = null
     private var prevPos: GeoPoint? = null
+    private var firstDPos: GeoPoint? = null
     private var drivenM = 0.0
-    private var driving = false
     private var arrived = false
 
     fun onSample(s: VehicleSnapshot, p: GeoPoint): List<DriveEvent> {
         val out = mutableListOf<DriveEvent>()
-        val pr = prev
-        if (s.gear == Gear.D) driving = true
-        if (driving) prevPos?.let { drivenM += distanceM(it, p) }
+        if (s.gear == Gear.D && firstDPos == null) firstDPos = p
+        if (prevGear == Gear.D) prevPos?.let { drivenM += distanceM(it, p) }
 
         val along = alongRouteM(route, p)
-        if (distanceM(p, pointAt(along)) <= OFF_ROUTE_M) {
-            if (pr != null && isHardMoment(pr, s)) {
-                segments.filter { along >= it.distanceFromStartM - 50 && along <= it.distanceFromStartM + passPastM }
+        val onRoute = distanceM(p, pointAt(along)) <= OFF_ROUTE_M
+        val r = ref
+        var advance = true
+        if (r != null) {
+            val dtMs = s.timestampMs - r.timestampMs
+            if (dtMs < MIN_DT_MS) advance = false
+            else if (onRoute && isHardMoment(r, s)) {
+                // attribute to the whole travelled interval so big position jumps can't skip the window
+                val ra = refAlong ?: along
+                val lo = minOf(ra, along)
+                val hi = maxOf(ra, along)
+                segments.filter { hi >= it.distanceFromStartM - 50 && lo <= it.distanceFromStartM + passPastM }
                     .forEach { hardMoment += it.id }
             }
+        }
+        if (onRoute) {
             for (seg in segments) {
                 val ahead = seg.distanceFromStartM - along
                 if (ahead > 0 && ahead <= approachM && approached.add(seg.id)) {
@@ -59,13 +72,20 @@ class DriveTracker(
             }
         }
 
-        if (!arrived && driving && pr?.gear == Gear.D && s.gear == Gear.P && s.driverSeated && drivenM >= ARRIVE_MIN_M) {
+        val start = firstDPos
+        if (!arrived && prevGear == Gear.D && s.gear == Gear.P && s.driverSeated &&
+            start != null && distanceM(start, p) >= ARRIVE_MIN_M
+        ) {
             arrived = true
             segments.filter { it.type == SegmentType.GARAGE_RAMP && passed.add(it.id) }
                 .forEach { out += DriveEvent.Passed(it, it.id in hardMoment) }
             out += DriveEvent.Arrived(p, drivenM.roundToInt())
         }
-        prev = s
+        if (advance) {
+            ref = s
+            refAlong = if (onRoute) along else null
+        }
+        prevGear = s.gear
         prevPos = p
         return out
     }
@@ -73,7 +93,6 @@ class DriveTracker(
     /** Rate-based (per actual elapsed time) so the verdict is independent of sampling rate. */
     private fun isHardMoment(a: VehicleSnapshot, b: VehicleSnapshot): Boolean {
         val dt = (b.timestampMs - a.timestampMs) / 1000.0
-        if (dt <= 0) return false
         val decel = (a.speedMps - b.speedMps) / dt
         val steerRate = abs(b.steeringDeg - a.steeringDeg) / dt
         return (b.brakePressed && decel >= 2.9) || steerRate > 90
@@ -96,5 +115,6 @@ class DriveTracker(
     private companion object {
         const val OFF_ROUTE_M = 80.0
         const val ARRIVE_MIN_M = 300.0
+        const val MIN_DT_MS = 100L
     }
 }
