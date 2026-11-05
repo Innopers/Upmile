@@ -10,7 +10,7 @@ import org.junit.Test
 class VehicleCheckTest {
     private fun snap(
         doorsClosed: Boolean = true,
-        activeTelltales: List<String> = emptyList(),
+        activeTelltales: List<String>? = emptyList(),
         energyPercent: Int? = 62,
         rangeKm: Int? = 412,
         beltBuckled: Boolean? = true,
@@ -37,12 +37,33 @@ class VehicleCheckTest {
         assertEquals(CheckState.WARN, CheckItem.BELT.of(r).state) // belt falls back to telltale
     }
 
-    @Test fun belt_telltaleWinsOverGetter() {
-        // emulator getter always reads false; telltale absent means belt is OK
-        val r = VehicleCheck.run(snap(beltBuckled = false, activeTelltales = emptyList()), 18.2)
-        assertEquals(CheckState.WARN, CheckItem.BELT.of(r).state)
-        val r2 = VehicleCheck.run(snap(beltBuckled = null, activeTelltales = emptyList()), 18.2)
-        assertEquals(CheckState.OK, CheckItem.BELT.of(r2).state)
+    @Test fun belt_listAvailable_ignoresGetter() {
+        // emulator getter always reads false; with the telltale list available, only SeatBelt matters
+        assertEquals(CheckState.OK, CheckItem.BELT.of(VehicleCheck.run(snap(beltBuckled = false, activeTelltales = emptyList()), 18.2)).state)
+    }
+
+    @Test fun belt_listAvailable_seatBeltTelltaleWarns() {
+        assertEquals(CheckState.WARN, CheckItem.BELT.of(VehicleCheck.run(snap(beltBuckled = true, activeTelltales = listOf("SeatBelt")), 18.2)).state)
+    }
+
+    @Test fun belt_listNull_getterFalseWarns() {
+        assertEquals(CheckState.WARN, CheckItem.BELT.of(VehicleCheck.run(snap(beltBuckled = false, activeTelltales = null), 18.2)).state)
+    }
+
+    @Test fun belt_listNull_getterTrueOk() {
+        assertEquals(CheckState.OK, CheckItem.BELT.of(VehicleCheck.run(snap(beltBuckled = true, activeTelltales = null), 18.2)).state)
+    }
+
+    @Test fun belt_listNull_getterNullIsInfo() {
+        assertEquals(CheckState.INFO, CheckItem.BELT.of(VehicleCheck.run(snap(beltBuckled = null, activeTelltales = null), 18.2)).state)
+    }
+
+    @Test fun telltales_listNull_isInfo() {
+        assertEquals(CheckState.INFO, CheckItem.TELLTALES.of(VehicleCheck.run(snap(activeTelltales = null), 18.2)).state)
+    }
+
+    @Test fun energy_boundaryRangeEqualsTwiceRoute_isOk() {
+        assertEquals(CheckState.OK, CheckItem.ENERGY.of(VehicleCheck.run(snap(rangeKm = 36), routeKm = 18.0)).state)
     }
 
     @Test fun otherTelltale_warnsTelltalesItem() {
