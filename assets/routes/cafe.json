@@ -1,0 +1,8 @@
+{"type":"FeatureCollection","features":[{"type":"Feature","geometry":{"type":"Point","coordinates":[127.0276,37.4979]},"properties":{"index":0,"pointIndex":0,"turnType":200,"description":"출발","totalDistance":9000,"totalTime":900}},
+{"type":"Feature","geometry":{"type":"LineString","coordinates":[[127.0276,37.4979],[127.0284,37.49993],[127.0292,37.50197],[127.03,37.504],[127.03133,37.506],[127.03267,37.508],[127.034,37.51],[127.036,37.512],[127.038,37.514],[127.04,37.516],[127.0425,37.518],[127.045,37.52]]},"properties":{"index":1,"lineIndex":0,"roadType":0,"distance":2943}},
+{"type":"Feature","geometry":{"type":"Point","coordinates":[127.045,37.52]},"properties":{"index":2,"pointIndex":1,"turnType":131,"description":"회전교차로 진입"}},
+{"type":"Feature","geometry":{"type":"LineString","coordinates":[[127.045,37.52],[127.046,37.522],[127.047,37.524],[127.048,37.526],[127.049,37.52833],[127.05,37.53067],[127.051,37.533],[127.0515,37.5355],[127.052,37.538]]},"properties":{"index":3,"lineIndex":1,"roadType":0,"distance":2102}},
+{"type":"Feature","geometry":{"type":"LineString","coordinates":[[127.052,37.538],[127.053,37.54],[127.054,37.542]]},"properties":{"index":4,"lineIndex":2,"roadType":7,"distance":478}},
+{"type":"Feature","geometry":{"type":"Point","coordinates":[127.054,37.542]},"properties":{"index":5,"pointIndex":2,"turnType":12,"description":"좁은 길에서 좌회전"}},
+{"type":"Feature","geometry":{"type":"LineString","coordinates":[[127.054,37.542],[127.0557,37.5446]]},"properties":{"index":6,"lineIndex":3,"roadType":7,"distance":325}},
+{"type":"Feature","geometry":{"type":"Point","coordinates":[127.0557,37.5446]},"properties":{"index":7,"pointIndex":3,"turnType":201,"description":"도착"}}]}

@@ -11,3 +11,5 @@
 ## 라이선스
 
 ## 개발 메모
+
+- 데모 경로 3개(`assets/routes/{commute,cafe,inlaws}.json`)는 TMAP 키가 생기기 전까지 TMAP 형식으로 직접 만든 합성 데이터입니다. `tools/fetch_route.sh`로 실제 응답으로 교체합니다.
