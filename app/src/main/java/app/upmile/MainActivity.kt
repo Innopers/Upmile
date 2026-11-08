@@ -18,17 +18,19 @@ import app.upmile.vehicle.PleosVehicleSignals
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
-    private lateinit var signals: PleosVehicleSignals
+    private var signals: PleosVehicleSignals? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         // Temporary: snapshot readout until a later task replaces this screen. Created here until Graph (Task 11).
-        signals = PleosVehicleSignals(applicationContext, DEFAULT_INVERT_SEAT).also { it.start() }
-        lifecycleScope.launch { signals.snapshots.collect { Log.d("UpmileSnap", it.toString()) } }
+        val s = PleosVehicleSignals(applicationContext, DEFAULT_INVERT_SEAT)
+        signals = s
+        s.start()
+        lifecycleScope.launch { s.snapshots.collect { Log.d("UpmileSnap", it.toString()) } }
         setContent {
             MaterialTheme {
                 Surface(Modifier.fillMaxSize()) {
-                    val snapshot by signals.snapshots.collectAsState()
+                    val snapshot by s.snapshots.collectAsState()
                     Column { Text("Upmile"); Text(snapshot.toString()) }
                 }
             }
@@ -36,7 +38,7 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
-        signals.stop()
+        signals?.stop()
         super.onDestroy()
     }
 }

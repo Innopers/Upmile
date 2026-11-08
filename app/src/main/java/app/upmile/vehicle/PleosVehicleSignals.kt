@@ -92,6 +92,7 @@ class PleosVehicleSignals(private val context: Context, private val invertSeatOc
     private val doorPositions = ConcurrentHashMap<DoorValue, Int>()
     @Volatile private var evSoc: Int? = null
     @Volatile private var fuel: Int? = null
+    @Volatile private var started = false
     private var vehicle: Vehicle? = null
     private var car: Car? = null
 
@@ -102,8 +103,9 @@ class PleosVehicleSignals(private val context: Context, private val invertSeatOc
         if (logged.add(field)) Log.w(TAG, "$field unavailable", e)
     }
 
-    private inline fun guard(field: String, block: () -> Unit) {
-        try { block() } catch (e: Exception) { warn(field, e) }
+    /** Runs [block]; failures (incl. LinkageError such as NoSuchMethodError, never VM errors) are logged once and returned to [onFail]. */
+    private inline fun guard(field: String, onFail: (Throwable) -> Unit = {}, block: () -> Unit) {
+        try { block() } catch (e: Exception) { warn(field, e); onFail(e) } catch (e: LinkageError) { warn(field, e); onFail(e) }
     }
 
     /** Getter first (listeners get no initial callback), then the listener; [onFail] runs when the field turns out to be unreadable. */
@@ -117,132 +119,157 @@ class PleosVehicleSignals(private val context: Context, private val invertSeatOc
     ) {
         val nonNull = { v: T? -> if (v != null) apply(v) }
         val fail = { e: Exception -> warn(name, e); onFail() }
-        try { get(nonNull, fail) } catch (e: Exception) { fail(e) }
-        try {
+        guard(name, { onFail() }) { get(nonNull, fail) }
+        guard(name, { onFail() }) {
             register()
-            undo += { guard(name, unregister) }
-        } catch (e: Exception) { fail(e) }
+            undo += { guard(name) { unregister() } }
+        }
     }
 
     override fun start() {
-        if (vehicle != null) return
-        val v = Vehicle(context.applicationContext)
-        try { v.initialize() } catch (e: Exception) { warn("vehicle", e); startCarProperties(); return }
+        if (started) return
+        started = true
+        var v: Vehicle? = null
+        guard("vehicle", { guard("vehicle") { v?.release() }; v = null }) {
+            v = Vehicle(context.applicationContext).also { it.initialize() }
+        }
         vehicle = v
-        startPleos(v)
-        startCarProperties()
+        v?.let(::startPleos)
+        guard("car") { startCarProperties() }
     }
 
     private fun startPleos(v: Vehicle) {
-        v.getGear().let { g ->
-            val l = object : GearSelectionListener {
-                override fun onSelected(gear: VehicleGear?) = edit { copy(gear = mapGear(gear)) }
-                override fun onFailed(e: Exception) = warn("gear", e)
-            }
-            field<VehicleGear>("gear", g::getCurrentGearSelectionState, { g.registerGearSelection(l) }, { g.unregisterGearSelection(l) }) {
-                edit { copy(gear = mapGear(it)) }
-            }
-        }
-        v.getBrake().let { b ->
-            val l = object : BrakePedalStatusListener {
-                override fun onBrakePedalStatusUpdated(status: Boolean?) { status?.let { edit { copy(brakePressed = it) } } }
-                override fun onFailed(e: Exception) = warn("brake", e)
-            }
-            field<Boolean>("brake", b::getCurrentBrakePedalStatus, { b.registerBrakePedalStatus(l) }, { b.unregisterBrakePedalStatus(l) }) {
-                edit { copy(brakePressed = it) }
-            }
-        }
-        v.getSteeringWheel().let { s ->
-            val l = object : SteeringWheelAngleListener {
-                override fun onSteeringWheelAngleUpdated(angle: Float?) { angle?.let { edit { copy(steeringDeg = steeringDeg(it)) } } }
-                override fun onFailed(e: Exception) = warn("steering", e)
-            }
-            field<Float>("steering", s::getCurrentSteeringWheelAngle, { s.registerSteeringWheelAngle(l) }, { s.unregisterSteeringWheelAngle(l) }) {
-                edit { copy(steeringDeg = steeringDeg(it)) }
-            }
-        }
-        v.getDoor().let { d ->
-            listOf(DoorValue.ROW_1_LEFT, DoorValue.ROW_1_RIGHT, DoorValue.ROW_2_LEFT, DoorValue.ROW_2_RIGHT).forEach { dv ->
-                val area = DoorArea(dv)
-                val set = { p: Int -> doorPositions[dv] = p; edit { copy(doorsClosed = doorsClosed(doorPositions.values)) } }
-                val l = object : DoorPositionListener {
-                    override fun onPositionUpdated(pos: Int?) { pos?.let(set) }
-                    override fun onFailed(e: Exception) = warn("door", e)
+        guard("gearBlock") {
+            v.getGear().let { g ->
+                val l = object : GearSelectionListener {
+                    override fun onSelected(gear: VehicleGear?) = edit { copy(gear = mapGear(gear)) }
+                    override fun onFailed(e: Exception) = warn("gear", e)
                 }
-                field<Int>("door", { ok, fail -> d.getCurrentDoorPosition(area, ok, fail) },
-                    { d.registerDoorPosition(area, l) }, { d.unregisterDoorPosition(area, l) }, apply = set)
+                field<VehicleGear>("gear", g::getCurrentGearSelectionState, { g.registerGearSelection(l) }, { g.unregisterGearSelection(l) }) {
+                    edit { copy(gear = mapGear(it)) }
+                }
             }
         }
-        v.getSafety().let { s ->
-            val set = { t: Telltales ->
-                edit { copy(activeTelltales = activeTelltaleIds(t.telltales.map { it.type.name to (it.state != TelltaleState.OFF) })) }
+        guard("brakeBlock") {
+            v.getBrake().let { b ->
+                val l = object : BrakePedalStatusListener {
+                    override fun onBrakePedalStatusUpdated(status: Boolean?) { status?.let { edit { copy(brakePressed = it) } } }
+                    override fun onFailed(e: Exception) = warn("brake", e)
+                }
+                field<Boolean>("brake", b::getCurrentBrakePedalStatus, { b.registerBrakePedalStatus(l) }, { b.unregisterBrakePedalStatus(l) }) {
+                    edit { copy(brakePressed = it) }
+                }
             }
-            val unavailable = { edit { copy(activeTelltales = null) } }
-            val l = object : TelltaleInfoListener {
-                override fun onTelltaleInfoUpdated(telltales: Telltales?) { telltales?.let(set) }
-                override fun onFailed(e: Exception) { warn("telltales", e); unavailable() }
-            }
-            field<Telltales>("telltales", s::getTelltalesInfo, { s.registerTelltales(l) }, { s.unregisterTelltales(l) }, unavailable, set)
         }
-        v.getEvBattery().let { b ->
-            val set = { p: Int -> evSoc = p; edit { copy(energyPercent = energyPercent(evSoc, fuel)) } }
-            val l = object : EvBatteryStateOfChargeListener {
-                override fun onEvBatteryStateOfChargeUpdated(value: Int?) { value?.let(set) }
-                override fun onFailed(e: Exception) = warn("evSoc", e)
+        guard("steeringwheelBlock") {
+            v.getSteeringWheel().let { s ->
+                val l = object : SteeringWheelAngleListener {
+                    override fun onSteeringWheelAngleUpdated(angle: Float?) { angle?.let { edit { copy(steeringDeg = steeringDeg(it)) } } }
+                    override fun onFailed(e: Exception) = warn("steering", e)
+                }
+                field<Float>("steering", s::getCurrentSteeringWheelAngle, { s.registerSteeringWheelAngle(l) }, { s.unregisterSteeringWheelAngle(l) }) {
+                    edit { copy(steeringDeg = steeringDeg(it)) }
+                }
             }
-            field<Int>("evSoc", b::getEvBatteryStateOfCharge, { b.registerEvBatteryStateOfCharge(l) }, { b.unregisterEvBatteryStateOfCharge(l) }, apply = set)
         }
-        v.getFuel().let { f ->
-            val set = { p: Int -> fuel = p; edit { copy(energyPercent = energyPercent(evSoc, fuel)) } }
-            val l = object : FuelPercentListener {
-                override fun onFuelPercentUpdated(value: Int?) { value?.let(set) }
-                override fun onFailed(e: Exception) = warn("fuel", e)
+        guard("doorBlock") {
+            v.getDoor().let { d ->
+                listOf(DoorValue.ROW_1_LEFT, DoorValue.ROW_1_RIGHT, DoorValue.ROW_2_LEFT, DoorValue.ROW_2_RIGHT).forEach { dv ->
+                    val area = DoorArea(dv)
+                    val set = { p: Int -> doorPositions[dv] = p; edit { copy(doorsClosed = doorsClosed(doorPositions.values)) } }
+                    val l = object : DoorPositionListener {
+                        override fun onPositionUpdated(pos: Int?) { pos?.let(set) }
+                        override fun onFailed(e: Exception) = warn("door", e)
+                    }
+                    field<Int>("door", { ok, fail -> d.getCurrentDoorPosition(area, ok, fail) },
+                        { d.registerDoorPosition(area, l) }, { d.unregisterDoorPosition(area, l) }, apply = set)
+                }
             }
-            field<Int>("fuel", f::getFuelPercent, { f.registerFuelPercent(l) }, { f.unregisterFuelPercent(l) }, apply = set)
         }
-        v.getOdometer().let { o ->
-            val set = { p: Float -> edit { copy(rangeKm = rangeKm(p)) } }
-            val l = object : RangeRemainingListener {
-                override fun onRangeRemainingChanged(rangeRemaining: Float?) { rangeRemaining?.let(set) }
-                override fun onFailed(e: Exception) = warn("range", e)
+        guard("safetyBlock") {
+            v.getSafety().let { s ->
+                val set = { t: Telltales ->
+                    edit { copy(activeTelltales = activeTelltaleIds(t.telltales.map { it.type.name to (it.state != TelltaleState.OFF) })) }
+                }
+                val unavailable = { edit { copy(activeTelltales = null) } }
+                val l = object : TelltaleInfoListener {
+                    override fun onTelltaleInfoUpdated(telltales: Telltales?) { telltales?.let(set) }
+                    override fun onFailed(e: Exception) { warn("telltales", e); unavailable() }
+                }
+                field<Telltales>("telltales", s::getTelltalesInfo, { s.registerTelltales(l) }, { s.unregisterTelltales(l) }, unavailable, set)
             }
-            field<Float>("range", o::getRangeRemainingDistance, { o.registerRangeRemainingListener(l) }, { o.unregisterRangeRemainingListener(l) }, apply = set)
         }
-        v.getSeat().let { s ->
-            val area = SeatArea(SeatValue.ROW_1_LEFT)
-            val set = { p: Boolean -> edit { copy(driverSeated = driverSeated(p, invertSeatOccupancy)) } }
-            val l = object : SeatOccupancyListener {
-                override fun onSeatOccupancyUpdated(occupancy: Boolean?) { occupancy?.let(set) }
-                override fun onFailed(e: Exception) = warn("seat", e)
+        guard("evbatteryBlock") {
+            v.getEvBattery().let { b ->
+                val set = { p: Int -> evSoc = p; edit { copy(energyPercent = energyPercent(evSoc, fuel)) } }
+                val l = object : EvBatteryStateOfChargeListener {
+                    override fun onEvBatteryStateOfChargeUpdated(value: Int?) { value?.let(set) }
+                    override fun onFailed(e: Exception) = warn("evSoc", e)
+                }
+                field<Int>("evSoc", b::getEvBatteryStateOfCharge, { b.registerEvBatteryStateOfCharge(l) }, { b.unregisterEvBatteryStateOfCharge(l) }, apply = set)
             }
-            field<Boolean>("seat", { ok, fail -> s.getCurrentSeatOccupancy(area, ok, fail) },
-                { s.registerSeatOccupancy(area, l) }, { s.unregisterSeatOccupancy(area, l) }, apply = set)
-            val setBelt = { p: Boolean -> edit { copy(beltBuckled = p) } }
-            val bl = object : SeatBeltBuckledStateListener {
-                override fun onSeatBeltBuckledStateUpdated(state: Boolean?) { state?.let(setBelt) }
-                override fun onFailed(e: Exception) = warn("belt", e)
-            }
-            field<Boolean>("belt", { ok, fail -> s.getCurrentSeatBeltBuckledState(area, ok, fail) },
-                { s.registerSeatBeltBuckledState(area, bl) }, { s.unregisterSeatBeltBuckledState(area, bl) },
-                onFail = { edit { copy(beltBuckled = null) } }, apply = setBelt)
         }
-        v.getWiper().let { w ->
-            val area = WindowArea(WindowValue.FRONT_WINDSHIELD)
-            val set = { p: WiperState -> edit { copy(wiperOn = p == WiperState.ON) } }
-            val l = object : WiperStateListener {
-                override fun onWiperStateUpdated(state: WiperState?) { state?.let(set) }
-                override fun onFailed(e: Exception) = warn("wiper", e)
+        guard("fuelBlock") {
+            v.getFuel().let { f ->
+                val set = { p: Int -> fuel = p; edit { copy(energyPercent = energyPercent(evSoc, fuel)) } }
+                val l = object : FuelPercentListener {
+                    override fun onFuelPercentUpdated(value: Int?) { value?.let(set) }
+                    override fun onFailed(e: Exception) = warn("fuel", e)
+                }
+                field<Int>("fuel", f::getFuelPercent, { f.registerFuelPercent(l) }, { f.unregisterFuelPercent(l) }, apply = set)
             }
-            field<WiperState>("wiper", { ok, fail -> w.getCurrentWiperState(area, ok, fail) },
-                { w.registerWiperState(area, l) }, { w.unregisterWiperState(area, l) }, apply = set)
         }
-        v.getLight().let { li ->
-            val set = { p: LightState -> edit { copy(headlightsOn = p == LightState.ON) } }
-            val l = object : LightStateListener {
-                override fun onLightStateUpdated(state: LightState?) { state?.let(set) }
-                override fun onFailed(e: Exception) = warn("headlights", e)
+        guard("odometerBlock") {
+            v.getOdometer().let { o ->
+                val set = { p: Float -> edit { copy(rangeKm = rangeKm(p)) } }
+                val l = object : RangeRemainingListener {
+                    override fun onRangeRemainingChanged(rangeRemaining: Float?) { rangeRemaining?.let(set) }
+                    override fun onFailed(e: Exception) = warn("range", e)
+                }
+                field<Float>("range", o::getRangeRemainingDistance, { o.registerRangeRemainingListener(l) }, { o.unregisterRangeRemainingListener(l) }, apply = set)
             }
-            field<LightState>("headlights", li::getCurrentLowBeamLightState, { li.registerLowBeamLightState(l) }, { li.unregisterLowBeamLightState(l) }, apply = set)
+        }
+        guard("seatBlock") {
+            v.getSeat().let { s ->
+                val area = SeatArea(SeatValue.ROW_1_LEFT)
+                val set = { p: Boolean -> edit { copy(driverSeated = driverSeated(p, invertSeatOccupancy)) } }
+                val l = object : SeatOccupancyListener {
+                    override fun onSeatOccupancyUpdated(occupancy: Boolean?) { occupancy?.let(set) }
+                    override fun onFailed(e: Exception) = warn("seat", e)
+                }
+                field<Boolean>("seat", { ok, fail -> s.getCurrentSeatOccupancy(area, ok, fail) },
+                    { s.registerSeatOccupancy(area, l) }, { s.unregisterSeatOccupancy(area, l) }, apply = set)
+                val setBelt = { p: Boolean -> edit { copy(beltBuckled = p) } }
+                val bl = object : SeatBeltBuckledStateListener {
+                    override fun onSeatBeltBuckledStateUpdated(state: Boolean?) { state?.let(setBelt) }
+                    override fun onFailed(e: Exception) = warn("belt", e)
+                }
+                field<Boolean>("belt", { ok, fail -> s.getCurrentSeatBeltBuckledState(area, ok, fail) },
+                    { s.registerSeatBeltBuckledState(area, bl) }, { s.unregisterSeatBeltBuckledState(area, bl) },
+                    onFail = { edit { copy(beltBuckled = null) } }, apply = setBelt)
+            }
+        }
+        guard("wiperBlock") {
+            v.getWiper().let { w ->
+                val area = WindowArea(WindowValue.FRONT_WINDSHIELD)
+                val set = { p: WiperState -> edit { copy(wiperOn = p == WiperState.ON) } }
+                val l = object : WiperStateListener {
+                    override fun onWiperStateUpdated(state: WiperState?) { state?.let(set) }
+                    override fun onFailed(e: Exception) = warn("wiper", e)
+                }
+                field<WiperState>("wiper", { ok, fail -> w.getCurrentWiperState(area, ok, fail) },
+                    { w.registerWiperState(area, l) }, { w.unregisterWiperState(area, l) }, apply = set)
+            }
+        }
+        guard("lightBlock") {
+            v.getLight().let { li ->
+                val set = { p: LightState -> edit { copy(headlightsOn = p == LightState.ON) } }
+                val l = object : LightStateListener {
+                    override fun onLightStateUpdated(state: LightState?) { state?.let(set) }
+                    override fun onFailed(e: Exception) = warn("headlights", e)
+                }
+                field<LightState>("headlights", li::getCurrentLowBeamLightState, { li.registerLowBeamLightState(l) }, { li.unregisterLowBeamLightState(l) }, apply = set)
+            }
         }
     }
 
@@ -273,6 +300,7 @@ class PleosVehicleSignals(private val context: Context, private val invertSeatOc
         undo.clear()
         guard("release") { vehicle?.release() }
         vehicle = null
+        started = false
         guard("car") { car?.disconnect() }
         car = null
     }
