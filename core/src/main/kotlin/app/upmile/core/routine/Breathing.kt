@@ -17,8 +17,8 @@ object Breathing {
 
     private const val INHALE_MS = INHALE_S * 1_000L
     private const val CYCLE_MS = (INHALE_S + EXHALE_S) * 1_000L
-    private const val MIN_BRIGHTNESS = 20
-    private const val MAX_BRIGHTNESS = 80
+    const val MIN_BRIGHTNESS = 20
+    const val MAX_BRIGHTNESS = 80
     private const val WARM_ARGB = 0xFFFFB86B.toInt()
     private const val COOL_ARGB = 0xFF4CC2FF.toInt()
 

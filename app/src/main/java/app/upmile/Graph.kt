@@ -25,6 +25,7 @@ import app.upmile.location.PleosLocationSource
 import app.upmile.vehicle.DEFAULT_INVERT_SEAT
 import app.upmile.vehicle.PleosVehicleSignals
 import app.upmile.voice.LineTracker
+import app.upmile.voice.MusicPlayer
 import app.upmile.voice.PleosVoice
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
@@ -56,6 +57,8 @@ object Graph {
     lateinit var signals: VehicleSignals; private set
     lateinit var location: LocationSource; private set
     lateinit var voice: Voice; private set
+    /** The routine's 출발곡; one player for the app, so leaving the screen can still fade it out. */
+    lateinit var music: MusicPlayer; private set
     lateinit var cabin: CabinController; private set
     lateinit var routes: RouteRepository; private set
     lateinit var store: RecordStore; private set
@@ -82,6 +85,7 @@ object Graph {
         }
         val e = PleosVoice(app).also { engine = it }
         voice = QueuedVoice(e, VOICE_TIMEOUT_MS, s)
+        music = MusicPlayer(app)
         cabin = NoCabin
         routes = AssetRouteRepository(::read)
         // the demo never touches the real record (see runDemo)
@@ -122,6 +126,7 @@ object Graph {
         location.stop()
         signals.stop()
         engine?.release(); engine = null
+        music.release()
         scope?.cancel(); scope = null
     }
 
