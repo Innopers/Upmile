@@ -43,7 +43,11 @@ beat() { curl -fsS -X POST "$CONSOLE/browser/session?client=upmile-demo" >/dev/n
 HB_FILE="${TMPDIR:-/tmp}/upmile-demo-hb.pid"
 stop_setup_heartbeat() {
   if [[ -f "$HB_FILE" ]]; then
-    kill "$(cat "$HB_FILE")" 2>/dev/null || true
+    local pid; pid="$(cat "$HB_FILE")"
+    # 재부팅 뒤 같은 pid가 다른 프로세스일 수 있어 명령줄에 마커(upmile-demo)가 있을 때만 끈다.
+    if ps -p "$pid" -o command= 2>/dev/null | grep -q 'upmile-demo'; then
+      kill "$pid" 2>/dev/null || true
+    fi
     rm -f "$HB_FILE"
   fi
 }
@@ -94,7 +98,7 @@ cmd_belt() {
   esac
 }
 
-cmd_reset() { start_heartbeat; neutral; stop_setup_heartbeat; echo "reset 완료"; }
+cmd_reset() { stop_setup_heartbeat; start_heartbeat; neutral; echo "reset 완료"; }
 
 cmd_drive() {
   local file="$SCENARIO_DIR/${1:-commute}_drive.json"
