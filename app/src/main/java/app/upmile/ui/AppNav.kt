@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
@@ -120,7 +119,7 @@ fun AppNav() {
                         destination, rehearsed, routineVisited, checkMemory.value.states, startFailed, { startFailed = !it },
                         onBack = { go(Screen.PREVIEW) },
                     )
-                    Screen.RECORD -> StubScreen(Screen.RECORD.title) { go(beforeRecord) }
+                    Screen.RECORD -> RecordScreen(onBack = { go(beforeRecord) }, onHome = { go(Screen.ROUTINE) })
                 }
             }
         }
@@ -183,14 +182,5 @@ private fun StepTab(n: Int, title: String, state: TabState, onClick: () -> Unit)
             Text("$n", color = digit, fontSize = 18.sp, fontWeight = FontWeight.Bold)
         }
         Text(title, color = if (active) Palette.text else Palette.sub, fontSize = 21.sp)
-    }
-}
-
-// shortcut: placeholder for RECORD until the next commit replaces it with the real screen.
-@Composable
-private fun StubScreen(title: String, onBack: () -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(28.dp)) {
-        Text(title, fontSize = 40.sp, fontWeight = FontWeight.Bold)
-        UpButton("이전", onBack, Modifier.width(240.dp))
     }
 }

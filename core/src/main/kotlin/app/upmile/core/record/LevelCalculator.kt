@@ -1,7 +1,8 @@
 package app.upmile.core.record
 
 object LevelCalculator {
-    private val thresholds = listOf(0, 2, 5, 8, 11)
+    /** Cards needed for each level, from Lv.1 up. */
+    val thresholds = listOf(0, 2, 5, 8, 11)
 
     fun level(record: Record): Int = thresholds.count { record.cards.size >= it }.coerceAtLeast(1)
 
