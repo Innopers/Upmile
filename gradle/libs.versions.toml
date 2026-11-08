@@ -4,12 +4,22 @@ agp = "8.13.0"
 coroutines = "1.10.2"
 serialization = "1.9.0"
 junit = "4.13.2"
+composeBom = "2025.10.01"
+activityCompose = "1.11.0"
 
 [libraries]
 kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "coroutines" }
 kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "coroutines" }
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "serialization" }
 junit = { module = "junit:junit", version.ref = "junit" }
+androidx-compose-bom = { module = "androidx.compose:compose-bom", version.ref = "composeBom" }
+androidx-compose-ui = { module = "androidx.compose.ui:ui" }
+androidx-compose-material3 = { module = "androidx.compose.material3:material3" }
+androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "activityCompose" }
+pleos-vehicle = { module = "ai.pleos.playground:Vehicle", version = "2.3.2" }
+pleos-navihelper = { module = "ai.pleos.playground:NaviHelper", version = "3.0.5" }
+pleos-fusedlocation = { module = "ai.pleos.playground:FusedLocation", version = "1.1.3" }
+pleos-tts = { module = "ai.pleos.playground:TextToSpeech", version = "3.3.1" }
 
 [plugins]
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
