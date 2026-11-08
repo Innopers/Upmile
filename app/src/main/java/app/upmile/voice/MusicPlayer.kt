@@ -9,6 +9,7 @@ import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
 import android.util.Log
+import app.upmile.guarded
 import java.util.concurrent.ConcurrentHashMap
 
 /** Looping routine background music. Everything runs on the main looper, so callers may use any thread. */
