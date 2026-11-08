@@ -75,9 +75,11 @@ fun AppNav() {
     var mood by rememberSaveable { mutableStateOf(Mood.A_LITTLE) }
     // What the check has said this departure; kept across screens, cleared when the cover comes on.
     val checkMemory = remember { mutableStateOf(CheckMemory()) }
-    // Today's destination; 13b's Preview sets it.
+    // Today's destination; Preview changes it.
     var destinationId by rememberSaveable { mutableStateOf(Graph.routes.destinations().first().id) }
     val destination = Graph.routes.destinations().first { it.id == destinationId }
+    // Segment ids whose preview ran to the end; Ready counts them and the drive stamps them.
+    var rehearsed by remember { mutableStateOf(emptySet<String>()) }
 
     val gear by remember { Graph.signals.snapshots.map { it.gear }.distinctUntilChanged() }
         .collectAsStateWithLifecycle(Graph.signals.snapshots.value.gear)
@@ -107,7 +109,10 @@ fun AppNav() {
                 when (screen) {
                     Screen.ROUTINE -> RoutineScreen(mood, { mood = it }, destination, onNext = { go(Screen.CHECK) })
                     Screen.CHECK -> CheckScreen(planFor(mood), destination, checkMemory, onBack = { go(Screen.ROUTINE) }, onNext = { go(Screen.PREVIEW) })
-                    Screen.PREVIEW -> StubScreen(Screen.PREVIEW.title) { go(Screen.CHECK) }
+                    Screen.PREVIEW -> PreviewScreen(
+                        destination, { destinationId = it.id }, rehearsed, { rehearsed = rehearsed + it },
+                        onBack = { go(Screen.CHECK) }, onNext = { go(Screen.READY) },
+                    )
                     Screen.READY -> StubScreen(Screen.READY.title) { go(Screen.PREVIEW) }
                     Screen.RECORD -> StubScreen(Screen.RECORD.title) { go(beforeRecord) }
                 }
@@ -175,7 +180,7 @@ private fun StepTab(n: Int, title: String, state: TabState, onClick: () -> Unit)
     }
 }
 
-// shortcut: placeholder for PREVIEW / READY / RECORD until Task 13b replaces it with the real screens.
+// shortcut: placeholder for READY / RECORD until the next commits replace it with the real screens.
 @Composable
 private fun StubScreen(title: String, onBack: () -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(28.dp)) {
