@@ -39,6 +39,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -94,7 +95,7 @@ fun RoutineScreen(mood: Mood, onMood: (Mood) -> Unit, destination: Destination, 
         while (true) withFrameMillis { now ->
             elapsedMs = now - start
             val f = Breathing.frameAt(elapsedMs)
-            cabinLit = Graph.cabin.ambient(f.brightness, f.argb) // the cabin layer throttles
+            cabinLit = Graph.cabin.ambient(f.brightness, breathColor(elapsedMs).toArgb()) // the screen's colour; the cabin layer throttles
         }
     }
     LaunchedEffect(plan.playMusic) { if (plan.playMusic) Graph.music.play(MUSIC) else Graph.music.fadeOutAndStop() }

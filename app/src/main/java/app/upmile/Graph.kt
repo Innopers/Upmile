@@ -6,8 +6,11 @@ import android.car.Car
 import android.car.drivingstate.CarUxRestrictionsManager
 import android.content.Context
 import android.content.pm.PackageManager
+import android.os.SystemClock
 import android.util.Log
+import app.upmile.cabin.PleosCabinController
 import app.upmile.core.cabin.CabinController
+import app.upmile.core.cabin.ThrottledCabin
 import app.upmile.core.demo.runDemo
 import app.upmile.core.drive.ReadyCheck
 import app.upmile.core.drive.ReadyStatus
@@ -78,7 +81,9 @@ object Graph {
     lateinit var voice: Voice; private set
     /** The routine's 출발곡; one player for the app, so leaving the screen can still fade it out. */
     lateinit var music: MusicPlayer; private set
+    /** Car mood light and fan, the same in both modes; UI thread only (the throttle is not synchronized). */
     lateinit var cabin: CabinController; private set
+    private var cabinCar: PleosCabinController? = null
     lateinit var routes: RouteRepository; private set
     lateinit var store: RecordStore; private set
     /** Lazy: the boundary file is large; first read when a drive starts (off the main thread), not at app start. */
@@ -98,7 +103,8 @@ object Graph {
         val e = PleosVoice(app).also { engine = it }
         voice = QueuedVoice(e, VOICE_TIMEOUT_MS, s)
         music = MusicPlayer(app)
-        cabin = NoCabin
+        cabinCar = PleosCabinController(app)
+        cabin = ThrottledCabin(cabinCar!!, 250, SystemClock::uptimeMillis)
         routes = AssetRouteRepository(::read)
         watchRestrictions()
     }
@@ -227,6 +233,7 @@ object Graph {
         signals.stop()
         engine?.release(); engine = null
         music.release()
+        cabinCar?.release(); cabinCar = null
         scope?.cancel(); scope = null
     }
 
@@ -246,12 +253,5 @@ object Graph {
 
         override fun start() {}
         override fun stop() {}
-    }
-
-    // shortcut: applies nothing (every call reports "not applied"), until Task 6 adds PleosCabinController.
-    private object NoCabin : CabinController {
-        override fun ambient(brightness: Int, argb: Int) = false
-        override fun quietFan() = false
-        override fun restore() {}
     }
 }
