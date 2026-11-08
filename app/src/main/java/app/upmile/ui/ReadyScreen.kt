@@ -58,6 +58,12 @@ internal fun withRo(name: String): String {
     return name + if (coda == 0 || coda == 8) "로" else "으로"
 }
 
+/** The start button: in 체험 모드 it replays the recorded drive instead of guiding to [destinationName]. */
+internal fun startLabel(destinationName: String, demo: Boolean, running: Boolean) = when {
+    demo -> if (running) "체험 주행 중" else "체험 주행 시작"
+    else -> "${withRo(destinationName)} ${if (running) "안내 중" else "안내 시작"}"
+}
+
 private val NaviIcon = strokeIcon("M3 11l18-8-8 18-2-8z", width = 2.6f)
 private val WarnIcon = strokeIcon("M12 3l9 16H3z", "M12 10v4M12 17v.5")
 
@@ -69,14 +75,16 @@ private val WarnIcon = strokeIcon("M12 3l9 16H3z", "M12 10v4M12 17v.5")
 @Composable
 fun ReadyScreen(
     destination: Destination, rehearsed: Set<String>, routineVisited: Boolean, check: Map<CheckItem, CheckState>,
-    startFailed: Boolean, onStarted: (Boolean) -> Unit, onBack: () -> Unit,
+    startFailed: Boolean, onStarted: (Boolean) -> Unit, onBack: () -> Unit, demo: Boolean,
 ) {
     val context = LocalContext.current
     val segments = remember(destination) { SegmentFinder.find(Graph.routes.route(destination.id), destination.hasGarage) }
     val seen = segments.map { it.id }.filter { it in rehearsed }
     val record by Graph.store.records.collectAsStateWithLifecycle()
     val voiceReady by Graph.voice.ready.collectAsStateWithLifecycle()
-    val running by DriveService.running.collectAsStateWithLifecycle()
+    val serviceRunning by DriveService.running.collectAsStateWithLifecycle()
+    val demoDriving by Graph.demoDriving.collectAsStateWithLifecycle()
+    val running = if (demo) demoDriving else serviceRunning
     var recheck by remember { mutableIntStateOf(0) } // permissions have no flow: re-read on resume and after the dialog
     LifecycleResumeEffect(Unit) { recheck++; onPauseOrDispose {} }
     val status = remember(voiceReady, running, recheck, startFailed) { Graph.readyStatus(startFailed) }
@@ -87,6 +95,7 @@ fun ReadyScreen(
 
     fun start() {
         if (starting || running) return // a second tap in the same frame, before the button disables
+        if (demo) { Graph.startDemoDrive(); return } // no service, no navigation; Graph ignores a second start
         val ok = DriveService.start(context, destination.id, seen)
         onStarted(ok)
         if (!ok) return
@@ -112,14 +121,18 @@ fun ReadyScreen(
             }
             Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                 // While a drive runs (until it arrives), this is the only way to end it from the car's screen.
-                if (running) UpButton("안내 끝내기", { DriveService.stop(context) }, Modifier.weight(1.4f).height(96.dp))
+                if (running) UpButton("안내 끝내기", { if (demo) Graph.stopDemoDrive() else DriveService.stop(context) }, Modifier.weight(1.4f).height(96.dp))
                 else UpButton("이전", onBack, Modifier.weight(1f).height(96.dp))
                 UpButton(
-                    "${withRo(destination.name)} ${if (running) "안내 중" else "안내 시작"}", ::start, Modifier.weight(3.4f).height(96.dp),
+                    startLabel(destination.name, demo, running), ::start, Modifier.weight(3.4f).height(96.dp),
                     primary = true, icon = NaviIcon, enabled = status.canDrive && !starting && !running,
                 )
             }
-            Text("목적지는 차량 내비게이션으로 보내요. 기어를 D로 바꾸면 화면을 숨기고 음성으로만 안내해요.", color = Palette.sub, fontSize = 19.sp)
+            Text(
+                if (demo) "기록해 둔 ${destination.name} 가는 길을 1분 30초 동안 재생해요. 주행 중에는 화면을 숨기고 음성으로만 안내해요."
+                else "목적지는 차량 내비게이션으로 보내요. 기어를 D로 바꾸면 화면을 숨기고 음성으로만 안내해요.",
+                color = Palette.sub, fontSize = 19.sp,
+            )
         }
         Collection(record, segments, Modifier.width(560.dp).fillMaxHeight())
     }

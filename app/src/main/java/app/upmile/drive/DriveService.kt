@@ -58,7 +58,7 @@ class DriveService : Service() {
         val destinationId = intent?.getStringExtra(EXTRA_DESTINATION)
         if (destinationId == null) { stopSelf(startId); return START_NOT_STICKY }
         val rehearsed = intent.getStringArrayExtra(EXTRA_REHEARSED)?.toSet().orEmpty()
-        // One set of sources per drive, so a later Graph.init (demo switch) can't mix them mid-drive.
+        // One set of sources per drive, so a later Graph swap (체험 모드) can't mix them mid-drive.
         val signals = Graph.signals
         val location = Graph.location
         // Main thread: the SDK adapters register their listeners here. Restarting the vehicle signals picks up a

@@ -95,8 +95,8 @@ internal data class Playback(val progress: Float = 0f, val playing: Boolean = tr
 
 internal fun nextSegment(index: Int, count: Int): Int? = (index + 1).takeIf { it < count }
 
-/** Drops queued cue lines, unless a drive is running: its lines share the queue. */
-private fun quiet() { if (!DriveService.running.value) Graph.voice.stop() }
+/** Drops queued cue lines, unless a drive (or the 체험 모드 replay) is running: its lines share the queue. */
+private fun quiet() { if (!DriveService.running.value && !Graph.demoDriving.value) Graph.voice.stop() }
 
 /** Row hint and difficulty bars (of 3) per segment type. A hint, not a grade. */
 private fun hint(s: HardSegment): Pair<String, Int> = when (s.type) {
@@ -121,7 +121,7 @@ private val Glass = Color(0xB806090D) // mockup rgba(6,9,13,.72)
 /** Step 3, 길 미리보기: today's destination, its hard segments, and a rehearsal of the selected one. */
 @Composable
 fun PreviewScreen(
-    destination: Destination, onDestination: (Destination) -> Unit,
+    destination: Destination, onDestination: ((Destination) -> Unit)?,
     rehearsed: Set<String>, onRehearsed: (String) -> Unit,
     onBack: () -> Unit, onNext: () -> Unit,
 ) {
@@ -160,14 +160,18 @@ fun PreviewScreen(
     }
 }
 
+/** [onDestination] null: the destination is fixed (체험 모드), so there is no 바꾸기. */
 @Composable
-private fun DestinationCard(destination: Destination, route: Route, hardCount: Int, onDestination: (Destination) -> Unit) {
+private fun DestinationCard(destination: Destination, route: Route, hardCount: Int, onDestination: ((Destination) -> Unit)?) {
     var open by remember { mutableStateOf(false) }
-    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(26.dp)).clickable(role = Role.Button) { open = !open }.card(24.dp)) {
+    Column(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(26.dp))
+            .clickable(enabled = onDestination != null, role = Role.Button) { open = !open }.card(24.dp),
+    ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Label("오늘 목적지")
             Spacer(Modifier.weight(1f))
-            Text(if (open) "닫기" else "바꾸기", color = Palette.accent, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+            if (onDestination != null) Text(if (open) "닫기" else "바꾸기", color = Palette.accent, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
         }
         Text(destination.name, Modifier.padding(top = 6.dp), fontSize = 29.sp, fontWeight = FontWeight.Bold)
         Row(Modifier.padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(18.dp)) {
@@ -181,7 +185,7 @@ private fun DestinationCard(destination: Destination, route: Route, hardCount: I
             )
         }
     }
-    if (open) {
+    if (open && onDestination != null) {
         val choices = remember { Graph.routes.destinations().map { it to Graph.routes.route(it.id) } }
         choices.forEach { (d, r) ->
             val chosen = d.id == destination.id
