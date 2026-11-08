@@ -53,6 +53,19 @@ import app.upmile.core.routine.planFor
 import app.upmile.ui.theme.Palette
 
 private const val MUSIC = "music/calm_start.m4a"
+private const val INHALE_MS = Breathing.INHALE_S * 1_000L
+private const val CYCLE_MS = (Breathing.INHALE_S + Breathing.EXHALE_S) * 1_000L
+private const val COLOR_FADE_MS = 1_200L // mockup: transition background 1.2s
+
+/** The breath colour: the phase's colour, faded in from the previous phase's over the first 1.2 s after each flip. */
+internal fun breathColor(elapsedMs: Long): Color {
+    val now = Breathing.frameAt(elapsedMs)
+    val pos = Math.floorMod(elapsedMs, CYCLE_MS)
+    val intoPhase = if (pos < INHALE_MS) pos else pos - INHALE_MS
+    if (intoPhase >= COLOR_FADE_MS) return Color(now.argb)
+    val before = Breathing.frameAt(elapsedMs - intoPhase - 1)
+    return lerp(Color(before.argb), Color(now.argb), intoPhase / COLOR_FADE_MS.toFloat())
+}
 
 /** The line under the mood chips: calm and honest, never a grade. */
 internal fun moodLine(mood: Mood, hardCount: Int): String = when (mood) {
@@ -112,7 +125,7 @@ private fun BreathCard(elapsedMs: () -> Long, cabinLit: Boolean, modifier: Modif
         Box(contentAlignment = Alignment.Center) {
             Canvas(Modifier.size(540.dp)) {
                 val frame = Breathing.frameAt(elapsedMs())
-                val color = Color(frame.argb)
+                val color = breathColor(elapsedMs())
                 val level = EaseInOutSine.transform(
                     (frame.brightness - Breathing.MIN_BRIGHTNESS) / (Breathing.MAX_BRIGHTNESS - Breathing.MIN_BRIGHTNESS).toFloat()
                 )
@@ -147,7 +160,7 @@ private fun BreathCard(elapsedMs: () -> Long, cabinLit: Boolean, modifier: Modif
         Row(Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(
                 Modifier.size(18.dp).drawBehind {
-                    val color = Color(Breathing.frameAt(elapsedMs()).argb)
+                    val color = breathColor(elapsedMs())
                     drawCircle(Brush.radialGradient(listOf(color.copy(alpha = .6f), Color.Transparent)), size.minDimension * 1.1f)
                     drawCircle(color)
                 }
