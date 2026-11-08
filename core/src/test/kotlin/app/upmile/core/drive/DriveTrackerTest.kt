@@ -36,6 +36,21 @@ class DriveTrackerTest {
         assertTrue(tr.onSample(snap(400), at(900.0)).isEmpty())
     }
 
+    @Test fun beforeFirstD_fixNearOrPastSegments_emitsNothing_andConsumesNothing() {
+        val tr = DriveTracker(route, listOf(merge))
+        assertTrue(tr.onSample(snap(0, speed = 0f, gear = Gear.P), at(1500.0)).isEmpty())  // 500 m before merge
+        assertTrue(tr.onSample(snap(200, speed = 0f, gear = Gear.P), at(2400.0)).isEmpty()) // past merge (stale fix)
+        // the real drive still gets the approach and the pass
+        assertEquals(1000, (tr.onSample(snap(400), at(1000.0)).single() as DriveEvent.Approaching).metersAhead)
+        assertEquals("merge", (tr.onSample(snap(600), at(2200.0)).single() as DriveEvent.Passed).segment.id)
+    }
+
+    @Test fun firstDSample_800mBeforeSegment_approachesOnThatTick() {
+        val tr = DriveTracker(route, listOf(merge))
+        assertTrue(tr.onSample(snap(0, speed = 0f, gear = Gear.P), at(1200.0)).isEmpty())
+        assertEquals(800, (tr.onSample(snap(200), at(1200.0)).single() as DriveEvent.Approaching).metersAhead)
+    }
+
     @Test fun passed_whenAlongBeyondSegmentPlus150m_withoutHardMoment() {
         val tr = DriveTracker(route, listOf(merge))
         tr.onSample(snap(0), at(2100.0))
