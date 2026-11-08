@@ -44,6 +44,21 @@ class CanvasPreviewTest {
         assertTrue(o.y > h / 2)
     }
 
+    @Test fun project_onAPathHeadingMinusX_pointOnItsRight_isRightOfCentre() {
+        val west = listOf(Vec3(0f, 1.25f, 0f), Vec3(-100f, 1.25f, 0f))
+        val c = cameraAt(west, arcLengths(west), 0f)
+        assertTrue("right of heading -X is -Z", c.project(Vec3(-20f, 0f, -3f), w, h)!!.x > w / 2)
+        assertTrue(c.project(Vec3(-20f, 0f, 3f), w, h)!!.x < w / 2)
+    }
+
+    @Test fun clipNear_quadWithTwoCornersBehind_keepsFourPointsInFront() {
+        val quad = floatArrayOf(-1f, 0f, -1f, 1f, 0f, -1f, 1f, 0f, 5f, -1f, 0f, 5f) // view space: (right, up, depth)
+        val out = FloatArray(18)
+        val m = clipNear(quad, 4, out)
+        assertEquals(4, m)
+        (0 until m).forEach { assertTrue(out[it * 3 + 2] >= .1f - 1e-6f) }
+    }
+
     @Test fun dashes_areThreeMetresOnFiveOff_fullDashesOnly() =
         assertEquals(listOf(0f to 3f, 8f to 11f, 16f to 19f), dashSpans(20f))
 }

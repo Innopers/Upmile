@@ -13,6 +13,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.drawscope.translate
+import app.upmile.core.preview3d.RoadTemplates.WALL
 import app.upmile.core.preview3d.Strip
 import app.upmile.core.preview3d.TemplateScene
 import app.upmile.core.preview3d.Vec3
@@ -31,8 +32,7 @@ private const val LOOK_AHEAD = 14f
 private const val LOOK_DROP = .25f
 private const val DASH = 3f
 private const val GAP = 5f
-/** RoadTemplates' wall colour. A wall's centre line sits 1 m above the road; it stands [WALL_H] tall from the road. */
-private const val WALL = 0xFF8A9099L
+/** A wall strip's centre line sits 1 m above the road; it stands this tall from the road. */
 private const val WALL_H = 2.8f
 private const val TREE_TRIES = 160
 /** Trees are scattered this far around the camera's route. */
@@ -77,9 +77,7 @@ internal class Camera(val eye: Vec3, look: Vec3) {
     /** Screen position of [p] on a [w]×[h] canvas, or null when it is behind the near plane. */
     fun project(p: Vec3, w: Float, h: Float): Offset? {
         val v = FloatArray(3).also { toView(floatArrayOf(p.x, p.y, p.z), 0, it) }
-        if (v[2] < NEAR) return null
-        val f = focal(h)
-        return Offset(w / 2 + v[0] / v[2] * f, h / 2 - v[1] / v[2] * f)
+        return if (v[2] < NEAR) null else toScreen(v[0], v[1], v[2], w, h, focal(h))
     }
 
     /** Screen row of the horizon: where a level line of sight ends up. */
@@ -87,6 +85,9 @@ internal class Camera(val eye: Vec3, look: Vec3) {
 }
 
 internal fun focal(h: Float) = h / 2 / tan(FOV_DEG / 2 * PI.toFloat() / 180f)
+
+/** View-space point (right, up, depth ≥ NEAR) on a [w]×[h] canvas with focal length [f]. */
+private fun toScreen(vx: Float, vy: Float, vz: Float, w: Float, h: Float, f: Float) = Offset(w / 2 + vx / vz * f, h / 2 - vy / vz * f)
 
 /** The camera at arclength fraction [progress] of [path] ([arc] = its [arcLengths]). */
 internal fun cameraAt(path: List<Vec3>, arc: List<Float>, progress: Float): Camera {
@@ -182,10 +183,8 @@ private class World(scene: TemplateScene) {
         if (m < 3) return
         poly.reset()
         for (i in 0 until m) {
-            val z = clipped[i * 3 + 2]
-            val x = w / 2 + clipped[i * 3] / z * f
-            val y = h / 2 - clipped[i * 3 + 1] / z * f
-            if (i == 0) poly.moveTo(x, y) else poly.lineTo(x, y)
+            val o = toScreen(clipped[i * 3], clipped[i * 3 + 1], clipped[i * 3 + 2], w, h, f)
+            if (i == 0) poly.moveTo(o.x, o.y) else poly.lineTo(o.x, o.y)
         }
         poly.close()
         val flatOutdoors = item.layer < UPRIGHT && look === Outdoor
@@ -202,7 +201,7 @@ private class World(scene: TemplateScene) {
 }
 
 /** Keeps the part of polygon [src] ([n] view-space points) in front of the near plane; returns its point count. */
-private fun clipNear(src: FloatArray, n: Int, dst: FloatArray): Int {
+internal fun clipNear(src: FloatArray, n: Int, dst: FloatArray): Int {
     var m = 0
     for (i in 0 until n) {
         val j = (i + 1) % n

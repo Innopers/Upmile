@@ -36,7 +36,8 @@ object RoadTemplates {
     private const val WHITE = 0xFFE9EDF2L
     private const val YELLOW = 0xFFF2C230L
     private const val GUIDE = 0x994CC2FFL
-    private const val WALL = 0xFF8A9099L
+    /** Wall strips; renderers draw them upright, and a scene with walls is underground. */
+    const val WALL = 0xFF8A9099L
 
     fun build(segment: HardSegment): TemplateScene = when (segment.type) {
         SegmentType.HIGHWAY_MERGE -> merge(
