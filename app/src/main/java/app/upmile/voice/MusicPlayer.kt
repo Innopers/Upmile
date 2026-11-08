@@ -7,6 +7,7 @@ import android.media.AudioManager
 import android.media.MediaPlayer
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.util.Log
 import java.util.concurrent.ConcurrentHashMap
 
@@ -43,6 +44,7 @@ class MusicPlayer(context: Context) {
             app.assets.openFd(assetPath).use { p.setDataSource(it) }
             p.setAudioAttributes(attrs)
             p.isLooping = true
+            p.setOnErrorListener { _, what, extra -> Log.w(TAG, "MediaPlayer error what=$what extra=$extra"); halt(); true }
             p.prepare()
             applyVolume()
             p.start()
@@ -52,10 +54,10 @@ class MusicPlayer(context: Context) {
 
     fun fadeOutAndStop(ms: Long = 1500) = main.post {
         if (player == null || fadeStep != null) return@post
-        val t0 = System.currentTimeMillis()
+        val t0 = SystemClock.uptimeMillis()
         val step = object : Runnable {
             override fun run() {
-                val k = ((System.currentTimeMillis() - t0).toFloat() / ms).coerceIn(0f, 1f)
+                val k = ((SystemClock.uptimeMillis() - t0).toFloat() / ms).coerceIn(0f, 1f)
                 fade = 1f - k
                 applyVolume()
                 if (k < 1f) main.postDelayed(this, FADE_TICK_MS) else { Log.d(TAG, "faded out"); halt() }
@@ -83,7 +85,7 @@ class MusicPlayer(context: Context) {
     private fun halt() {
         fadeStep?.let(main::removeCallbacks)
         fadeStep = null
-        player?.let { p -> guard("release") { p.stop() }; guard("release") { p.release() } }
+        player?.let { p -> guard("stop") { p.stop() }; guard("release") { p.release() } }
         player = null
         duck = 1f; fade = 1f; resumeOnGain = false
         guard("abandonFocus") { audio.abandonAudioFocusRequest(focus) }

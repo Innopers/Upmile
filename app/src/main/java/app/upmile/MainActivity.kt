@@ -37,7 +37,8 @@ class MainActivity : ComponentActivity() {
         lifecycleScope.launch { s.snapshots.collect { Log.d("UpmileSnap", it.toString()) } }
         // Temporary debug triggers for the voice/music check (same lifetime as the readout).
         val e = PleosVoice(applicationContext).also { engine = it }
-        val voice = QueuedVoice(engine = e, scope = lifecycleScope)
+        // 40 s > PleosVoice's longest line (LineTracker.MAX_TOTAL_MS = 32 s): last resort only. Task 11 Graph must use the same value.
+        val voice = QueuedVoice(engine = e, timeoutMs = 40_000, scope = lifecycleScope)
         val m = MusicPlayer(applicationContext).also { music = it }
         setContent {
             MaterialTheme {
@@ -46,7 +47,7 @@ class MainActivity : ComponentActivity() {
                     Column {
                         Text("Upmile"); Text(snapshot.toString())
                         Row {
-                            Button({ voice.say("출발 준비를 시작할게요.") }) { Text("음성 테스트") }
+                            Button({ voice.say("첫 번째 문장입니다."); voice.say("두 번째 문장입니다.") }) { Text("음성 테스트") }
                             Button({
                                 m.play("music/calm_start.m4a")
                                 lifecycleScope.launch { delay(10_000); m.fadeOutAndStop() }
