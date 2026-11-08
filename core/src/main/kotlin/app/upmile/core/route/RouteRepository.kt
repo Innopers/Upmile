@@ -1,6 +1,7 @@
 package app.upmile.core.route
 
 import app.upmile.core.model.Route
+import java.util.concurrent.ConcurrentHashMap
 
 data class Destination(val id: String, val name: String, val lat: Double, val lon: Double, val hasGarage: Boolean)
 
@@ -16,10 +17,13 @@ class AssetRouteRepository(private val read: (String) -> String) : RouteReposito
         Destination("inlaws", "처가", 37.3670, 127.1084, true),
     )
 
+    // Screens and the drive ask for routes often; the files never change while the app runs.
+    private val routes = ConcurrentHashMap<String, Route>()
+
     override fun destinations() = list
 
-    override fun route(destinationId: String): Route {
+    override fun route(destinationId: String): Route = routes.getOrPut(destinationId) {
         val d = list.first { it.id == destinationId }
-        return TmapRouteParser.parse(d.id, d.name, read("routes/${d.id}.json"))
+        TmapRouteParser.parse(d.id, d.name, read("routes/${d.id}.json"))
     }
 }
