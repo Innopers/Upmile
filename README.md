@@ -2,11 +2,53 @@
 
 운전 중에 가르치지 않습니다. 출발 전 몇 분, 오늘 길의 가장 어려운 곳을 차 안에서 먼저 달려 봅니다.
 
+Upmile은 초보 운전자를 위한 Pleos Connect(Android Automotive) 앱입니다.
+출발 전 호흡 루틴(차량 무드조명·공조 연동)과 차량 점검, 어려운 구간을 미리 달려 보는 길 미리보기를 거쳐 출발합니다.
+주행 중에는 화면을 숨기고 음성으로만 안내하며, 도착하면 오늘의 기록을 남깁니다.
+
 ## 실행 방법
+
+1. Pleos 에뮬레이터를 콜드 부팅합니다.
+2. APK를 설치합니다(`-g`는 런타임 권한을 함께 허용합니다).
+
+   ```bash
+   adb install -r -g apk/INNOPERS_Upmile_release.apk
+   ```
+
+   `-g`를 쓰지 않았다면 현재 사용자에게 권한을 직접 허용합니다.
+
+   ```bash
+   adb shell pm grant --user $(adb shell am get-current-user) app.upmile android.car.permission.CAR_SPEED
+   adb shell pm grant --user $(adb shell am get-current-user) app.upmile pleos.car.permission.FUSED_LOCATION
+   ```
+
+3. 앱을 실행합니다. **가장 쉬운 방법**은 화면 위쪽의 **체험 모드** 버튼입니다. 콘솔 없이, 기록해 둔 약 95초의 출퇴근 주행을 음성과 함께 재생하고 기록 화면으로 끝납니다. 출발 탭에서 "체험 주행 시작"을 누르세요.
+4. 실제 신호 모드: Virtual Console(8088 포트)을 `adb forward tcp:8088 tcp:8088`로 연결한 뒤 `tools/demo.sh`로 차량 신호와 위치를 재생합니다(아래 시연 방법).
 
 ## 테스트 환경
 
+- Pleos Connect Emulator 2.1.0 / Android 14 (API 34), arm64 이미지, Apple Silicon Mac
+- Virtual Console 사용
+- SDK: Vehicle 2.3.2, NaviHelper 3.0.5, FusedLocation 1.1.3, TextToSpeech 3.3.1
+- APK에는 arm64-v8a와 x86_64 네이티브 라이브러리가 모두 들어 있지만, **검증은 arm64 에뮬레이터에서만 했습니다.** x86_64(Windows) 환경은 구하지 못해 확인하지 못했습니다.
+
 ## APK 위치
+
+`apk/INNOPERS_Upmile_release.apk`
+
+릴리스 서명 키가 없는 환경에서 소스로 빌드하면 debug 키로 서명됩니다. 직접 빌드는 `tools/release.sh`입니다.
+
+## 시연 방법
+
+`tools/demo.sh`는 adb와 Virtual Console로 차량 신호를 흉내 냅니다(`ANDROID_HOME` 또는 PATH의 adb 사용).
+
+1. `tools/demo.sh setup` (위치 서비스가 멈췄다면 `--fix-location`)
+2. 앱에서 루틴 → 차량 점검(`tools/demo.sh belt on` / `belt off`로 벨트 경고를 켰다 끄면 체크 항목이 바뀝니다) → 길 미리보기 → 출발 화면의 "회사로 안내 시작"
+3. `tools/demo.sh drive commute` (약 95초 실시간 재생, 접근 구간 음성 안내)
+4. 도착해 P단이 되면 앱이 기록 화면을 엽니다
+5. `tools/demo.sh reset`
+
+콘솔 페이지를 열어 둔 상태에서 무드조명 변화가 보입니다.
 
 ## 라이선스
 
