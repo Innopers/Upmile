@@ -21,8 +21,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -79,11 +81,17 @@ fun ReadyScreen(
     LifecycleResumeEffect(Unit) { recheck++; onPauseOrDispose {} }
     val status = remember(voiceReady, running, recheck, startFailed) { Graph.readyStatus(startFailed) }
     val ask = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { recheck++ }
+    // `running` turns true only once the service runs its onStartCommand; this covers the taps in between.
+    var starting by remember { mutableStateOf(false) }
+    LaunchedEffect(running) { if (running) starting = false }
 
     fun start() {
+        if (starting || running) return // a second tap in the same frame, before the button disables
         val ok = DriveService.start(context, destination.id, seen)
         onStarted(ok)
-        if (ok) Graph.sendToNavi(destination)
+        if (!ok) return
+        starting = true
+        Graph.sendToNavi(destination)
     }
 
     Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(36.dp)) {
@@ -108,7 +116,7 @@ fun ReadyScreen(
                 else UpButton("이전", onBack, Modifier.weight(1f).height(96.dp))
                 UpButton(
                     "${withRo(destination.name)} ${if (running) "안내 중" else "안내 시작"}", ::start, Modifier.weight(3.4f).height(96.dp),
-                    primary = true, icon = NaviIcon, enabled = status.canDrive && !running,
+                    primary = true, icon = NaviIcon, enabled = status.canDrive && !starting && !running,
                 )
             }
             Text("목적지는 차량 내비게이션으로 보내요. 기어를 D로 바꾸면 화면을 숨기고 음성으로만 안내해요.", color = Palette.sub, fontSize = 19.sp)

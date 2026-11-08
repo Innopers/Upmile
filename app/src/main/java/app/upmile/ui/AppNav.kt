@@ -52,6 +52,9 @@ enum class Screen(val step: Int?, val title: String) {
 /** Every screen hides while driving. An unknown gear counts as driving (fail safe). */
 internal fun coverShown(restricted: Boolean, gear: Gear) = restricted || gear != Gear.P
 
+/** A preview counts for the next departure only: the cover coming on (the drive has its ids by then) clears it. */
+internal fun rehearsalAfterCover(rehearsed: Set<String>, coverOn: Boolean) = if (coverOn) emptySet() else rehearsed
+
 /** A finished drive the user has not looked at yet opens the record once the car is in P. */
 internal fun opensRecord(gear: Gear, unseenSessionId: String?) = gear == Gear.P && unseenSessionId != null
 
@@ -77,7 +80,7 @@ fun AppNav() {
     // Today's destination; Preview changes it.
     var destinationId by rememberSaveable { mutableStateOf(Graph.routes.destinations().first().id) }
     val destination = Graph.routes.destinations().first { it.id == destinationId }
-    // Segment ids whose preview ran to the end; Ready counts them and the drive stamps them.
+    // Segment ids whose preview ran to the end this departure; Ready counts them and the drive stamps them.
     var rehearsed by remember { mutableStateOf(emptySet<String>()) }
     var routineVisited by rememberSaveable { mutableStateOf(false) }
     var startFailed by remember { mutableStateOf(false) } // the last 안내 시작 could not start the drive service
@@ -98,6 +101,7 @@ fun AppNav() {
     LaunchedEffect(cover) {
         Log.i(TAG, "driving cover ${if (cover) "on" else "off"} (gear=$gear restricted=$restricted, screen=$screen)")
         checkMemory.value = checkMemory.value.afterCover(cover)
+        rehearsed = rehearsalAfterCover(rehearsed, cover)
     }
     LaunchedEffect(gear == Gear.P, unseen) { if (opensRecord(gear, unseen)) go(Screen.RECORD) }
     LaunchedEffect(screen) { if (screen == Screen.ROUTINE) routineVisited = true }
