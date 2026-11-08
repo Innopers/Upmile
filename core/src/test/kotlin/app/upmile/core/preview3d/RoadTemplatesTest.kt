@@ -97,6 +97,24 @@ class RoadTemplatesTest {
         assertTrue(cueArc(s, 4) >= arc.last() - 5f)
     }
 
+    @Test fun openRoads_runOnIntoTheFog_pastTheLastCameraPoint() {
+        listOf(SegmentType.HIGHWAY_MERGE, SegmentType.MULTILANE_LEFT, SegmentType.ROUNDABOUT).forEach { t ->
+            val s = build(t); val (a, b) = s.cameraPath.takeLast(2)
+            val d = hypot(b.x - a.x, b.z - a.z)
+            val x = b.x + (b.x - a.x) / d * 200f; val z = b.z + (b.z - a.z) / d * 200f // 200 m on along the final heading
+            assertTrue(t.name, s.strips.any { st -> st.width >= 3f && st.center.zipWithNext().any { (p, q) -> onSegment(x, z, p, q, st.width / 2) } })
+        }
+    }
+
+    @Test fun generic_drivesInTheRightLane_notOnTheCentreLine() =
+        assertTrue(build(SegmentType.ROUNDABOUT).cameraPath.all { it.x > 1f })
+
+    private fun onSegment(x: Float, z: Float, p: Vec3, q: Vec3, r: Float): Boolean {
+        val dx = q.x - p.x; val dz = q.z - p.z
+        val t = (((x - p.x) * dx + (z - p.z) * dz) / (dx * dx + dz * dz)).coerceIn(0f, 1f)
+        return hypot(x - p.x - dx * t, z - p.z - dz * t) <= r
+    }
+
     @Test fun badParams_doNotBreakGeometry() {
         val s = RoadTemplates.build(seg(SegmentType.HIGHWAY_MERGE, mapOf("lanes" to 0.0, "accelLaneM" to -5.0)))
         assertTrue(s.strips.all { it.width > 0f } && s.cameraPath.size >= 8)

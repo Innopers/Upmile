@@ -30,6 +30,8 @@ object RoadTemplates {
     private const val TARGET_LANE = 2
     private const val LANE = 3.5f
     private const val EYE = 1.25f
+    /** Open roads run on this far past the last camera point, into the fog, so the final frame never shows the road ending. */
+    private const val RUNOUT = 300f
     private const val ASPHALT = 0xFF31363DL
     private const val WHITE = 0xFFE9EDF2L
     private const val YELLOW = 0xFFF2C230L
@@ -84,14 +86,14 @@ object RoadTemplates {
         val accel = listOf(v(accelX, -rampEnd), v(accelX, -accelEnd))
         val taper = listOf(v(accelX, -accelEnd), v(edge - LANE / 2, -taperEnd))
         val strips = mutableListOf(
-            Strip(listOf(v(0f, 0f), v(0f, -total - 25f)), mainW, ASPHALT),
+            Strip(listOf(v(0f, 0f), v(0f, -total - RUNOUT)), mainW, ASPHALT),
             Strip(ramp, LANE, ASPHALT),
             Strip(accel, LANE, ASPHALT),
             Strip(taper, LANE, ASPHALT),
-            Strip(listOf(v(-edge, 0f), v(-edge, -total - 25f)), 0.15f, WHITE),
+            Strip(listOf(v(-edge, 0f), v(-edge, -total - RUNOUT)), 0.15f, WHITE),
             Strip(listOf(v(edge, 0f), v(edge, -accelEnd)), 0.15f, WHITE, dashed = true),
         )
-        for (i in 1 until lanes) strips += Strip(listOf(v(-edge + i * LANE, 0f), v(-edge + i * LANE, -total - 25f)), 0.15f, WHITE, dashed = true)
+        for (i in 1 until lanes) strips += Strip(listOf(v(-edge + i * LANE, 0f), v(-edge + i * LANE, -total - RUNOUT)), 0.15f, WHITE, dashed = true)
         val laneX = edge - LANE / 2
         val cam = listOf(
             v(accelX + 14f, 0f), v(accelX + 8f, -20f), v(accelX, -rampEnd), v(accelX, -rampEnd - accelM * 0.4f),
@@ -115,7 +117,7 @@ object RoadTemplates {
         val outZ = crossZ - (TARGET_LANE - 0.5f) * LANE // TARGET_LANE-th lane counted from the near edge of the cross road
         val strips = mutableListOf(
             Strip(listOf(v(0f, 0f), v(0f, stopZ)), laneCount * LANE, ASPHALT),
-            Strip(listOf(v(-half - 90f, crossZ), v(half + 20f, crossZ)), crossW, ASPHALT),
+            Strip(listOf(v(-half - 45f - RUNOUT, crossZ), v(half + 20f, crossZ)), crossW, ASPHALT),
             Strip(listOf(v(-half, 0f), v(-half, stopZ)), 0.15f, YELLOW),
             Strip(listOf(v(-half, stopZ), v(half, stopZ)), 0.5f, WHITE),
         )
@@ -182,12 +184,12 @@ object RoadTemplates {
     }
 
     private fun generic(title: String): TemplateScene {
-        val len = 200f; val road = len + 25f
+        val len = 200f; val road = len + RUNOUT
         val strips = listOf(
             Strip(listOf(v(0f, 0f), v(0f, -road)), 2 * LANE, ASPHALT),
             Strip(listOf(v(0f, 0f), v(0f, -road)), 0.15f, YELLOW, dashed = true),
         )
-        val cam = (0..9).map { eye(v(0f, -it * len / 9f)) }
+        val cam = (0..9).map { eye(v(LANE / 2, -it * len / 9f)) } // right-hand lane, not on the centre line
         return scene(strips, cam, listOf(len * 0.1f to title))
     }
 }
