@@ -1,3 +1,4 @@
+import java.util.Properties
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
@@ -6,6 +7,13 @@ plugins {
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
 }
+
+// 릴리스 서명 키는 local.properties(커밋 금지)에서 읽는다.
+val signingProps = Properties().apply {
+    rootProject.file("local.properties").takeIf { it.exists() }?.reader()?.use { load(it) }
+}
+val signingKeys = listOf("storeFile", "storePassword", "keyAlias", "keyPassword").map { "upmile.$it" }
+val hasReleaseKey = signingKeys.all { !signingProps.getProperty(it).isNullOrBlank() }
 
 android {
     namespace = "app.upmile"
@@ -21,12 +29,27 @@ android {
         ndk { abiFilters += listOf("arm64-v8a", "x86_64") }
     }
 
+    signingConfigs {
+        if (hasReleaseKey) {
+            create("release") {
+                storeFile = file(signingProps.getProperty("upmile.storeFile"))
+                storePassword = signingProps.getProperty("upmile.storePassword")
+                keyAlias = signingProps.getProperty("upmile.keyAlias")
+                keyPassword = signingProps.getProperty("upmile.keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
             // The TTS AAR ships no consumer rules and uses gson.
             isMinifyEnabled = false
-            // Debug key until Task 16.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = if (hasReleaseKey) {
+                signingConfigs.getByName("release")
+            } else {
+                logger.warn("upmile.* 서명 키가 local.properties에 없어 릴리스 빌드를 debug 키로 서명합니다.")
+                signingConfigs.getByName("debug")
+            }
         }
     }
 
