@@ -5,7 +5,9 @@ import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -13,12 +15,18 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.lifecycleScope
+import app.upmile.core.voice.QueuedVoice
+import app.upmile.voice.MusicPlayer
+import app.upmile.voice.PleosVoice
 import app.upmile.vehicle.DEFAULT_INVERT_SEAT
 import app.upmile.vehicle.PleosVehicleSignals
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     private var signals: PleosVehicleSignals? = null
+    private var engine: PleosVoice? = null
+    private var music: MusicPlayer? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -27,11 +35,25 @@ class MainActivity : ComponentActivity() {
         signals = s
         s.start()
         lifecycleScope.launch { s.snapshots.collect { Log.d("UpmileSnap", it.toString()) } }
+        // Temporary debug triggers for the voice/music check (same lifetime as the readout).
+        val e = PleosVoice(applicationContext).also { engine = it }
+        // 40 s > PleosVoice's longest line (LineTracker.MAX_TOTAL_MS = 32 s): last resort only. Task 11 Graph must use the same value.
+        val voice = QueuedVoice(engine = e, timeoutMs = 40_000, scope = lifecycleScope)
+        val m = MusicPlayer(applicationContext).also { music = it }
         setContent {
             MaterialTheme {
                 Surface(Modifier.fillMaxSize()) {
                     val snapshot by s.snapshots.collectAsState()
-                    Column { Text("Upmile"); Text(snapshot.toString()) }
+                    Column {
+                        Text("Upmile"); Text(snapshot.toString())
+                        Row {
+                            Button({ voice.say("첫 번째 문장입니다."); voice.say("두 번째 문장입니다.") }) { Text("음성 테스트") }
+                            Button({
+                                m.play("music/calm_start.m4a")
+                                lifecycleScope.launch { delay(10_000); m.fadeOutAndStop() }
+                            }) { Text("음악 테스트") }
+                        }
+                    }
                 }
             }
         }
@@ -39,6 +61,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onDestroy() {
         signals?.stop()
+        engine?.release()
+        music?.release()
         super.onDestroy()
     }
 }

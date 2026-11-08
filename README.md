@@ -11,6 +11,7 @@
 ## 라이선스
 
 - 시·군·구 경계(`assets/regions/sigungu.geojson`): 통계청 SGIS 행정구역 경계(공공누리 1유형)를 가공한 vuski/admdongkor(https://github.com/vuski/admdongkor, CC BY 4.0) 데이터를 단순화·병합하여 사용했습니다. 생성: `tools/build_regions.sh`.
+- 루틴 배경음(`assets/music/calm_start.m4a`): Upmile 팀이 `tools/make_music.py`로 직접 생성한 음원(CC0 1.0).
 
 ## 개발 메모
 
