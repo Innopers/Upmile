@@ -35,11 +35,12 @@ class MainActivity : ComponentActivity() {
                 Surface(Modifier.fillMaxSize()) {
                     val snapshot by Graph.signals.snapshots.collectAsState()
                     val location by Graph.location.location.collectAsState()
+                    val restricted by Graph.restricted.collectAsState()
                     val running by DriveService.running.collectAsState()
                     val record by Graph.store.records.collectAsState()
                     Column {
                         Text("Upmile"); Text(snapshot.toString())
-                        Text("위치 $location · 주행 서비스 $running")
+                        Text("위치 $location · 주행 규제 $restricted · 주행 서비스 $running")
                         Text("unseenSessionId ${record.unseenSessionId} · cards ${record.cards.size}")
                         Row {
                             Button({ Graph.voice.say("첫 번째 문장입니다."); Graph.voice.say("두 번째 문장입니다.") }) { Text("음성 테스트") }
