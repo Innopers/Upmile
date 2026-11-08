@@ -40,11 +40,13 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /** App-wide dependencies, built once in [UpmileApp]. 체험 모드 ([setDemoMode]) swaps vehicle, location and record for the recorded commute. */
 object Graph {
@@ -68,6 +70,7 @@ object Graph {
     val demo: StateFlow<Boolean> = _demo.asStateFlow()
     private var demoCar: DemoCar? = null
     private var demoDrive: Job? = null
+    private var switching: Job? = null // a running setDemoMode
     private val _demoDriving = MutableStateFlow(false)
     val demoDriving: StateFlow<Boolean> = _demoDriving.asStateFlow()
     lateinit var signals: VehicleSignals; private set
@@ -91,7 +94,7 @@ object Graph {
         if (scope != null) close()
         app = context.applicationContext
         val s = CoroutineScope(SupervisorJob() + Dispatchers.Default).also { scope = it }
-        useMode(demoMode)
+        use(load(demoMode))
         val e = PleosVoice(app).also { engine = it }
         voice = QueuedVoice(e, VOICE_TIMEOUT_MS, s)
         music = MusicPlayer(app)
@@ -100,39 +103,44 @@ object Graph {
         watchRestrictions()
     }
 
-    /** The mode's vehicle, location and record. The demo record starts empty and never touches the real one (see runDemo). */
-    private fun useMode(demo: Boolean) {
-        if (demo) {
-            val car = DemoCar(ScenarioJson.decode(read("scenarios/commute_drive.json")).first()).also { demoCar = it }
-            signals = car
-            location = car
-            demoFile().delete()
-            store = RecordStore(demoFile())
-        } else {
-            demoCar = null
-            signals = PleosVehicleSignals(app, DEFAULT_INVERT_SEAT)
-            location = PleosLocationSource(app)
-            store = RecordStore(File(app.filesDir, "record.json"))
-        }
-        _demo.value = demo
+    /** What a mode swaps in, read from files (any thread); [use] applies it. */
+    private class Mode(val demo: Boolean, val car: DemoCar?, val store: RecordStore)
+
+    /** Either way the demo record goes: entering starts it empty, leaving (or a fresh start) drops it. Never touches record.json. */
+    private fun load(demo: Boolean): Mode {
+        demoFile().delete()
+        val car = if (demo) DemoCar(ScenarioJson.decode(read("scenarios/commute_drive.json")).first()) else null
+        return Mode(demo, car, RecordStore(if (demo) demoFile() else File(app.filesDir, "record.json")))
+    }
+
+    /** Main thread (the Pleos adapters are built here). [demo] flips last, so whoever follows it sees the new members. */
+    private fun use(m: Mode) {
+        demoCar = m.car
+        signals = m.car ?: PleosVehicleSignals(app, DEFAULT_INVERT_SEAT)
+        location = m.car ?: PleosLocationSource(app)
+        store = m.store
+        _demo.value = m.demo
     }
 
     /**
      * Main thread. Switches 체험 모드 on or off, swapping only what the mode changes ([signals], [location], [store]):
-     * the voice keeps its loaded TTS model. On: a running real drive stops first, since it holds the sources this stops.
-     * Off: a running demo drive is cancelled and the demo record deleted.
+     * the voice keeps its loaded TTS model. A running real drive stops first (it holds the sources this stops), and a
+     * running replay is cancelled and joined before the demo record is deleted, so its last tick can't write it back.
+     * Taps while a switch runs are ignored.
      */
     fun setDemoMode(on: Boolean) {
-        if (on == _demo.value) return
-        val drive = demoDrive
-        if (on) DriveService.stop(app) else drive?.cancel()
-        location.stop()
-        signals.stop()
-        useMode(on)
-        signals.start() // the activity starts them only once, in onCreate
-        // after the cancelled drive's last tick, which could still write the demo record
-        if (!on) scope?.launch { drive?.join(); demoFile().delete() }
-        Log.i(TAG, "demo mode ${if (on) "on" else "off"}")
+        val s = scope ?: return
+        if (on == _demo.value || switching?.isActive == true) return
+        switching = s.launch(Dispatchers.Main.immediate) {
+            if (on) DriveService.stop(app)
+            demoDrive?.cancelAndJoin()
+            val m = withContext(Dispatchers.IO) { load(on) }
+            location.stop()
+            signals.stop()
+            use(m)
+            signals.start() // the activity starts them only once, in onCreate
+            Log.i(TAG, "demo mode ${if (on) "on" else "off"}")
+        }
     }
 
     /**
@@ -142,7 +150,7 @@ object Graph {
     fun startDemoDrive() {
         val car = demoCar ?: return
         val s = scope ?: return
-        if (demoDrive?.isCompleted == false) return
+        if (demoDrive?.isCompleted == false || switching?.isActive == true) return
         val st = store
         _demoDriving.value = true
         demoDrive = s.launch {
@@ -159,7 +167,10 @@ object Graph {
             } catch (e: Exception) {
                 Log.e(TAG, "demo drive failed", e)
             } finally {
-                if (!finished) voice.stop() // ended early: drop the queued approach lines, as DriveService does
+                if (!finished) { // ended early: drop the queued approach lines (as DriveService does), back to P so the cover lifts
+                    voice.stop()
+                    car.park()
+                }
                 _demoDriving.value = false
             }
         }
@@ -219,8 +230,8 @@ object Graph {
         scope?.cancel(); scope = null
     }
 
-    /** 체험 모드's car: parked at the scenario's first frame until [follow] gets the replay's frames. Needs no start or stop. */
-    private class DemoCar(first: ScenarioFrame) : VehicleSignals, LocationSource {
+    /** 체험 모드's car: parked at the scenario's first frame until [follow] gets the replay's frames, [park] puts it back. No start or stop. */
+    private class DemoCar(private val first: ScenarioFrame) : VehicleSignals, LocationSource {
         private val snapshot = MutableStateFlow(first.snapshot)
         private val position = MutableStateFlow<GeoPoint?>(GeoPoint(first.lat, first.lon))
         override val snapshots: StateFlow<VehicleSnapshot> = snapshot.asStateFlow()
@@ -230,6 +241,8 @@ object Graph {
             snapshot.value = f.snapshot
             position.value = GeoPoint(f.lat, f.lon)
         }
+
+        fun park() = follow(first)
 
         override fun start() {}
         override fun stop() {}

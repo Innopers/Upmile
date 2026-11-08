@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.upmile.Graph
+import app.upmile.core.demo.DEMO_DESTINATION
 import app.upmile.core.routine.Mood
 import app.upmile.core.routine.planFor
 import app.upmile.core.vehicle.Gear
@@ -88,7 +89,8 @@ private fun Nav(demo: Boolean) {
     val checkMemory = remember { mutableStateOf(CheckMemory()) }
     // Today's destination; Preview changes it.
     var destinationId by rememberSaveable { mutableStateOf(Graph.routes.destinations().first().id) }
-    val destination = Graph.routes.destinations().first { it.id == destinationId }
+    // 체험 모드 always replays the commute, so every screen shows that destination.
+    val destination = Graph.routes.destinations().first { it.id == if (demo) DEMO_DESTINATION else destinationId }
     // Segment ids whose preview ran to the end this departure; Ready counts them and the drive stamps them.
     var rehearsed by remember { mutableStateOf(emptySet<String>()) }
     var routineVisited by rememberSaveable { mutableStateOf(false) }
@@ -116,7 +118,8 @@ private fun Nav(demo: Boolean) {
     LaunchedEffect(screen) { if (screen == Screen.ROUTINE) routineVisited = true }
 
     Column(Modifier.fillMaxSize().background(Palette.bg)) {
-        if (demo) DemoBanner(onExit = { Graph.setDemoMode(false) })
+        // no 끝내기 to tap while the real car requires distraction optimization
+        if (demo) DemoBanner(onExit = if (restricted) null else { { Graph.setDemoMode(false) } })
         // Replaces the screens rather than covering them, so music, cabin light and check speech stop while driving.
         if (cover) { if (demo) DemoCover() else DrivingCover(destination.name) }
         else Column(Modifier.fillMaxSize()) {
@@ -129,7 +132,7 @@ private fun Nav(demo: Boolean) {
                     Screen.ROUTINE -> RoutineScreen(mood, { mood = it }, destination, onNext = { go(Screen.CHECK) })
                     Screen.CHECK -> CheckScreen(planFor(mood), destination, checkMemory, onBack = { go(Screen.ROUTINE) }, onNext = { go(Screen.PREVIEW) })
                     Screen.PREVIEW -> PreviewScreen(
-                        destination, { destinationId = it.id }, rehearsed, { rehearsed = rehearsed + it },
+                        destination, if (demo) null else { { destinationId = it.id } }, rehearsed, { rehearsed = rehearsed + it },
                         onBack = { go(Screen.CHECK) }, onNext = { go(Screen.READY) },
                     )
                     Screen.READY -> ReadyScreen(

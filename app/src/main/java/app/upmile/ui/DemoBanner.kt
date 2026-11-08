@@ -34,9 +34,9 @@ import app.upmile.ui.theme.Palette
 
 private val ExitShape = RoundedCornerShape(18.dp)
 
-/** 체험 모드's strip above every screen, the cover included: the drive is a replay, and [onExit] (끝내기) leaves the mode. */
+/** 체험 모드's strip above every screen, the cover included: the drive is a replay, and [onExit] (끝내기) leaves the mode; null hides it. */
 @Composable
-fun DemoBanner(onExit: () -> Unit) {
+fun DemoBanner(onExit: (() -> Unit)?) {
     Row(
         Modifier.fillMaxWidth().height(84.dp).background(Palette.mint.copy(alpha = .10f))
             .drawBehind { drawLine(Palette.mint.copy(alpha = .35f), Offset(0f, size.height), Offset(size.width, size.height), 1.dp.toPx()) }
@@ -47,7 +47,7 @@ fun DemoBanner(onExit: () -> Unit) {
         Box(Modifier.size(12.dp).background(Palette.mint, CircleShape))
         Text("체험 모드 · 기록된 주행을 재생하는 중", color = Palette.mint, fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.weight(1f))
-        Box(
+        if (onExit != null) Box(
             Modifier.height(64.dp).clip(ExitShape).border(1.5.dp, Palette.mint.copy(alpha = .6f), ExitShape)
                 .clickable(role = Role.Button, onClick = onExit).padding(horizontal = 30.dp),
             contentAlignment = Alignment.Center,
