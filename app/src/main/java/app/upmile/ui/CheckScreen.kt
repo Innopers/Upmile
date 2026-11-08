@@ -25,9 +25,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -63,9 +63,16 @@ import kotlinx.coroutines.delay
 
 private const val REVEAL_MS = 350L
 
-/** What to say now: each WARN when it appears or turns WARN, and the seat-mirror tip once. Unchanged results stay silent. */
-internal fun toSpeak(before: List<CheckResult>, now: List<CheckResult>): List<CheckResult> = now.filter { r ->
-    (r.state == CheckState.WARN || r.item == CheckItem.SEAT_MIRROR) && before.none { it.item == r.item && it.state == r.state }
+/** What the check has said this departure: each item's last shown state, and the last line spoken. AppNav holds it across screens. */
+data class CheckMemory(val states: Map<CheckItem, CheckState> = emptyMap(), val lastLine: String? = null) {
+    /** Lines to say for [shown] (each WARN when it appears or turns WARN, the seat-mirror tip once), and the memory after. */
+    internal fun hear(shown: List<CheckResult>): Pair<List<CheckResult>, CheckMemory> {
+        val say = shown.filter { (it.state == CheckState.WARN || it.item == CheckItem.SEAT_MIRROR) && states[it.item] != it.state }
+        return say to CheckMemory(states + shown.associate { it.item to it.state }, say.lastOrNull()?.message ?: lastLine)
+    }
+
+    /** Screen changes keep the memory; the cover coming on (gear out of P, or restricted) starts a new departure. */
+    internal fun afterCover(coverOn: Boolean) = if (coverOn) CheckMemory() else this
 }
 
 private val DoorIcon = strokeIcon("M4 4h12l4 6v10H4z", "M14 13h2")
@@ -85,7 +92,7 @@ private fun look(item: CheckItem, routeKm: Double): Pair<ImageVector, String> = 
 
 /** Step 2, 차량 점검: results light up one by one, then follow the car live. Each WARN is spoken once. */
 @Composable
-fun CheckScreen(plan: RoutinePlan, destination: Destination, onBack: () -> Unit, onNext: () -> Unit) {
+fun CheckScreen(plan: RoutinePlan, destination: Destination, memory: MutableState<CheckMemory>, onBack: () -> Unit, onNext: () -> Unit) {
     val snapshot by Graph.signals.snapshots.collectAsStateWithLifecycle()
     val routeKm = remember(destination) { Graph.routes.route(destination.id).totalDistanceM / 1000.0 }
     val withMirror = RoutineStep.SEAT_MIRROR in plan.steps
@@ -94,11 +101,10 @@ fun CheckScreen(plan: RoutinePlan, destination: Destination, onBack: () -> Unit,
     var shown by remember { mutableIntStateOf(0) }
     LaunchedEffect(Unit) { repeat(results.size) { delay(REVEAL_MS); shown++ } }
     val visible = results.take(shown)
-    var said by remember { mutableStateOf(emptyList<CheckResult>()) }
-    var lastLine by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(visible) {
-        toSpeak(said, visible).forEach { Graph.voice.say(it.message); lastLine = it.message }
-        said = visible
+        val (say, next) = memory.value.hear(visible) // read at run time, so it is never a stale copy
+        say.forEach { Graph.voice.say(it.message) }
+        memory.value = next
     }
 
     Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(28.dp)) {
@@ -108,7 +114,7 @@ fun CheckScreen(plan: RoutinePlan, destination: Destination, onBack: () -> Unit,
                 val (icon, name) = look(r.item, routeKm)
                 CheckRow(r, revealed = i < shown, icon, name)
             }
-            lastLine?.let { VoiceLine(it) }
+            memory.value.lastLine?.let { VoiceLine(it) }
             Spacer(Modifier.weight(1f))
             Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                 UpButton("이전", onBack, Modifier.weight(1f))

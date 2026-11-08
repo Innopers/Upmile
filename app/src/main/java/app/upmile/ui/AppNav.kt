@@ -73,6 +73,8 @@ fun AppNav() {
     var reached by rememberSaveable { mutableIntStateOf(1) }
     var beforeRecord by rememberSaveable { mutableStateOf(Screen.ROUTINE) }
     var mood by rememberSaveable { mutableStateOf(Mood.A_LITTLE) }
+    // What the check has said this departure; kept across screens, cleared when the cover comes on.
+    val checkMemory = remember { mutableStateOf(CheckMemory()) }
     // Today's destination; 13b's Preview sets it.
     var destinationId by rememberSaveable { mutableStateOf(Graph.routes.destinations().first().id) }
     val destination = Graph.routes.destinations().first { it.id == destinationId }
@@ -90,10 +92,13 @@ fun AppNav() {
         screen = to
     }
 
-    LaunchedEffect(cover) { Log.i(TAG, "driving cover ${if (cover) "on" else "off"} (gear=$gear restricted=$restricted, screen=$screen)") }
+    LaunchedEffect(cover) {
+        Log.i(TAG, "driving cover ${if (cover) "on" else "off"} (gear=$gear restricted=$restricted, screen=$screen)")
+        checkMemory.value = checkMemory.value.afterCover(cover)
+    }
     LaunchedEffect(gear == Gear.P, unseen) { if (opensRecord(gear, unseen)) go(Screen.RECORD) }
 
-    Box(Modifier.fillMaxSize().background(Palette.surface)) {
+    Box(Modifier.fillMaxSize().background(Palette.bg)) {
         // Replaces the screens rather than covering them, so music, cabin light and check speech stop while driving.
         if (cover) DrivingCover(destination.name)
         else Column(Modifier.fillMaxSize()) {
@@ -101,7 +106,7 @@ fun AppNav() {
             Box(Modifier.weight(1f).fillMaxWidth().padding(start = 36.dp, end = 36.dp, top = 20.dp, bottom = 32.dp)) {
                 when (screen) {
                     Screen.ROUTINE -> RoutineScreen(mood, { mood = it }, destination, onNext = { go(Screen.CHECK) })
-                    Screen.CHECK -> CheckScreen(planFor(mood), destination, onBack = { go(Screen.ROUTINE) }, onNext = { go(Screen.PREVIEW) })
+                    Screen.CHECK -> CheckScreen(planFor(mood), destination, checkMemory, onBack = { go(Screen.ROUTINE) }, onNext = { go(Screen.PREVIEW) })
                     Screen.PREVIEW -> StubScreen(Screen.PREVIEW.title) { go(Screen.CHECK) }
                     Screen.READY -> StubScreen(Screen.READY.title) { go(Screen.PREVIEW) }
                     Screen.RECORD -> StubScreen(Screen.RECORD.title) { go(beforeRecord) }

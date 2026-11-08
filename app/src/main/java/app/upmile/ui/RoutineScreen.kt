@@ -1,8 +1,6 @@
 package app.upmile.ui
 
-import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.EaseInOutSine
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -108,14 +106,16 @@ fun RoutineScreen(mood: Mood, onMood: (Mood) -> Unit, destination: Destination, 
 /** The breathing circle. When the cabin light can't follow, the glow ring on screen carries the light instead. */
 @Composable
 private fun BreathCard(elapsedMs: () -> Long, cabinLit: Boolean, modifier: Modifier) {
-    val frame = Breathing.frameAt(elapsedMs())
-    val color by animateColorAsState(Color(frame.argb), tween(1200), label = "breath")
-    val level = EaseInOutSine.transform(
-        (frame.brightness - Breathing.MIN_BRIGHTNESS) / (Breathing.MAX_BRIGHTNESS - Breathing.MIN_BRIGHTNESS).toFloat()
-    )
+    // Only the drawing reads every frame; the words change at most once a second.
+    val cue by remember { derivedStateOf { Breathing.frameAt(elapsedMs()).let { it.phase to it.secondsLeftInPhase } } }
     Column(modifier.card(), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
         Box(contentAlignment = Alignment.Center) {
             Canvas(Modifier.size(540.dp)) {
+                val frame = Breathing.frameAt(elapsedMs())
+                val color = Color(frame.argb)
+                val level = EaseInOutSine.transform(
+                    (frame.brightness - Breathing.MIN_BRIGHTNESS) / (Breathing.MAX_BRIGHTNESS - Breathing.MIN_BRIGHTNESS).toFloat()
+                )
                 val r = 230.dp.toPx()
                 if (cabinLit) drawCircle(Color(0xFF273140), r, style = Stroke(1.5.dp.toPx()))
                 else {
@@ -140,15 +140,17 @@ private fun BreathCard(elapsedMs: () -> Long, cabinLit: Boolean, modifier: Modif
                 )
             }
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(if (frame.phase == Phase.INHALE) "들이쉬기" else "내쉬기", fontSize = 46.sp, fontWeight = FontWeight.SemiBold)
-                Text("${frame.secondsLeftInPhase}", color = Color(0xFFD9E6F2).copy(alpha = .85f), fontSize = 26.sp)
+                Text(if (cue.first == Phase.INHALE) "들이쉬기" else "내쉬기", fontSize = 46.sp, fontWeight = FontWeight.SemiBold)
+                Text("${cue.second}", color = Color(0xFFD9E6F2).copy(alpha = .85f), fontSize = 26.sp)
             }
         }
         Row(Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(
-                Modifier.size(18.dp)
-                    .drawBehind { drawCircle(Brush.radialGradient(listOf(color.copy(alpha = .6f), Color.Transparent)), size.minDimension * 1.1f) }
-                    .background(color, CircleShape)
+                Modifier.size(18.dp).drawBehind {
+                    val color = Color(Breathing.frameAt(elapsedMs()).argb)
+                    drawCircle(Brush.radialGradient(listOf(color.copy(alpha = .6f), Color.Transparent)), size.minDimension * 1.1f)
+                    drawCircle(color)
+                }
             )
             Text(
                 if (cabinLit) "실내 무드조명이 호흡 속도에 맞춰 바뀌고 있어요" else "화면의 빛을 따라 천천히 숨 쉬어요",
