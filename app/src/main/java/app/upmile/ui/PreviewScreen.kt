@@ -95,8 +95,8 @@ internal data class Playback(val progress: Float = 0f, val playing: Boolean = tr
 
 internal fun nextSegment(index: Int, count: Int): Int? = (index + 1).takeIf { it < count }
 
-/** Drops queued cue lines, unless a drive is running: its lines share the queue. */
-private fun quiet() { if (!DriveService.running.value) Graph.voice.stop() }
+/** Drops queued cue lines, unless a drive (or the 체험 모드 replay) is running: its lines share the queue. */
+private fun quiet() { if (!DriveService.running.value && !Graph.demoDriving.value) Graph.voice.stop() }
 
 /** Row hint and difficulty bars (of 3) per segment type. A hint, not a grade. */
 private fun hint(s: HardSegment): Pair<String, Int> = when (s.type) {

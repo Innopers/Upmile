@@ -23,7 +23,29 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import app.upmile.core.model.GeoPoint
+import app.upmile.core.model.HardSegment
+import app.upmile.core.model.Route
+import app.upmile.core.route.alongRouteM
 import app.upmile.ui.theme.Palette
+import kotlin.math.roundToInt
+
+/**
+ * The cover's next-segment line for position [p]: "1.2km 앞 · 고속도로 합류" for the nearest segment still ahead, rounded to
+ * 100 m like the approach voice ("300m 앞", "바로 앞" under 50 m). Null without a position or once the last one is reached.
+ */
+internal fun nextSegmentLine(route: Route, segments: List<HardSegment>, p: GeoPoint?): String? {
+    val along = alongRouteM(route, p ?: return null)
+    val next = segments.filter { it.distanceFromStartM > along }.minByOrNull { it.distanceFromStartM } ?: return null
+    val m = next.distanceFromStartM - along
+    val r = (m / 100).roundToInt() * 100
+    val ahead = when {
+        m < 50 -> "바로"
+        r >= 1000 -> if (r % 1000 == 0) "${r / 1000}km" else "${r / 1000}.${r % 1000 / 100}km"
+        else -> "${r}m"
+    }
+    return "$ahead 앞 · ${next.title}"
+}
 
 private val NaviIcon = strokeIcon("M3 11l18-8-8 18-2-8z", width = 2.6f)
 private val CoverWave = listOf(22, 44, 30, 56, 26, 40, 20).map { (it * 1.4f).dp }

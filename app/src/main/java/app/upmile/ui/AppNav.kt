@@ -21,6 +21,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -31,6 +32,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -71,6 +73,13 @@ private const val TAG = "AppNav"
 
 @Composable
 fun AppNav() {
+    val demo by Graph.demo.collectAsStateWithLifecycle()
+    // Switching 체험 모드 starts over on ROUTINE with fresh state, reading Graph's swapped vehicle and record.
+    key(demo) { Nav(demo) }
+}
+
+@Composable
+private fun Nav(demo: Boolean) {
     var screen by rememberSaveable { mutableStateOf(Screen.ROUTINE) }
     var reached by rememberSaveable { mutableIntStateOf(1) }
     var beforeRecord by rememberSaveable { mutableStateOf(Screen.ROUTINE) }
@@ -106,11 +115,15 @@ fun AppNav() {
     LaunchedEffect(gear == Gear.P, unseen) { if (opensRecord(gear, unseen)) go(Screen.RECORD) }
     LaunchedEffect(screen) { if (screen == Screen.ROUTINE) routineVisited = true }
 
-    Box(Modifier.fillMaxSize().background(Palette.bg)) {
+    Column(Modifier.fillMaxSize().background(Palette.bg)) {
+        if (demo) DemoBanner(onExit = { Graph.setDemoMode(false) })
         // Replaces the screens rather than covering them, so music, cabin light and check speech stop while driving.
-        if (cover) DrivingCover(destination.name)
+        if (cover) { if (demo) DemoCover() else DrivingCover(destination.name) }
         else Column(Modifier.fillMaxSize()) {
-            Header(screen.step, reached, onStep = { s -> go(Screen.entries.first { it.step == s }) }, onRecord = { go(Screen.RECORD) })
+            Header(
+                screen.step, reached, onStep = { s -> go(Screen.entries.first { it.step == s }) }, onRecord = { go(Screen.RECORD) },
+                onDemo = if (demo) null else { { Graph.setDemoMode(true) } },
+            )
             Box(Modifier.weight(1f).fillMaxWidth().padding(start = 36.dp, end = 36.dp, top = 20.dp, bottom = 32.dp)) {
                 when (screen) {
                     Screen.ROUTINE -> RoutineScreen(mood, { mood = it }, destination, onNext = { go(Screen.CHECK) })
@@ -121,7 +134,7 @@ fun AppNav() {
                     )
                     Screen.READY -> ReadyScreen(
                         destination, rehearsed, routineVisited, checkMemory.value.states, startFailed, { startFailed = !it },
-                        onBack = { go(Screen.PREVIEW) },
+                        onBack = { go(Screen.PREVIEW) }, demo = demo,
                     )
                     Screen.RECORD -> RecordScreen(onBack = { go(beforeRecord) }, onHome = { go(Screen.ROUTINE) })
                 }
@@ -132,9 +145,11 @@ fun AppNav() {
 
 private val LogoIcon = strokeIcon("M7 21c0-6 10-6 10-12V3", "M12 21v-2", width = 2.6f)
 private val StarIcon = strokeIcon("M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1-5.4-2.9-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z", width = 2f)
+private val PlayIcon = strokeIcon("M8 5l11 7-11 7z", width = 2.4f)
 
+/** [onDemo] (체험 모드로 둘러보기) is null while already in 체험 모드: the banner then offers the way out. */
 @Composable
-private fun Header(currentStep: Int?, reached: Int, onStep: (Int) -> Unit, onRecord: () -> Unit) {
+private fun Header(currentStep: Int?, reached: Int, onStep: (Int) -> Unit, onRecord: () -> Unit, onDemo: (() -> Unit)?) {
     Row(
         Modifier.fillMaxWidth().height(112.dp).padding(start = 36.dp, end = 36.dp, top = 20.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -155,16 +170,22 @@ private fun Header(currentStep: Int?, reached: Int, onStep: (Int) -> Unit, onRec
             Screen.entries.forEach { s -> s.step?.let { StepTab(it, s.title, tabState(it, currentStep, reached)) { onStep(it) } } }
         }
         Spacer(Modifier.weight(1f))
-        Row(
-            Modifier.height(64.dp).clip(RoundedCornerShape(18.dp)).background(Palette.surface2)
-                .border(1.dp, Palette.line, RoundedCornerShape(18.dp))
-                .clickable(role = Role.Button, onClick = onRecord).padding(horizontal = 26.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(StarIcon, null, Modifier.size(26.dp), tint = Palette.warn)
-            Text("기록", fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
-        }
+        if (onDemo != null) HeaderButton(PlayIcon, Palette.mint, "체험 모드", onDemo, Modifier.padding(end = 16.dp))
+        HeaderButton(StarIcon, Palette.warn, "기록", onRecord)
+    }
+}
+
+@Composable
+private fun HeaderButton(icon: ImageVector, tint: Color, text: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    Row(
+        modifier.height(64.dp).clip(RoundedCornerShape(18.dp)).background(Palette.surface2)
+            .border(1.dp, Palette.line, RoundedCornerShape(18.dp))
+            .clickable(role = Role.Button, onClick = onClick).padding(horizontal = 26.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(icon, null, Modifier.size(26.dp), tint = tint)
+        Text(text, fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
     }
 }
 
