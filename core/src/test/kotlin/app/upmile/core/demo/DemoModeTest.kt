@@ -2,6 +2,9 @@ package app.upmile.core.demo
 
 import app.upmile.core.record.LevelCalculator
 import app.upmile.core.record.RecordStore
+import app.upmile.core.voice.Voice
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -28,6 +31,18 @@ class DemoModeTest {
         val store = RecordStore(tmp.newFile("record_demo.json"))
         val first = runDemoHeadless(::readAsset, store)
         assertEquals(first, runDemoHeadless(::readAsset, store))
+    }
+
+    @Test fun givenVoice_getsEveryLine() {
+        val voice = object : Voice {
+            val said = mutableListOf<String>()
+            override val ready: StateFlow<Boolean> = MutableStateFlow(true)
+            override fun say(text: String, priority: Int) { said += text }
+            override fun stop() {}
+        }
+        runBlocking { runDemo(::readAsset, RecordStore(tmp.newFile("record_demo.json")), voice = voice) }
+        assertEquals(3, voice.said.count { "아까 연습한" in it }) // one approach line per commute segment
+        assertEquals("도착했어요. 오늘 기록을 정리했어요.", voice.said.last())
     }
 
     @Test fun coarseAppPacing_400msSteps_stillKeepsTheHardBrake() {
