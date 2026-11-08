@@ -80,6 +80,8 @@ fun AppNav() {
     val destination = Graph.routes.destinations().first { it.id == destinationId }
     // Segment ids whose preview ran to the end; Ready counts them and the drive stamps them.
     var rehearsed by remember { mutableStateOf(emptySet<String>()) }
+    var routineVisited by rememberSaveable { mutableStateOf(false) }
+    var startFailed by remember { mutableStateOf(false) } // the last 안내 시작 could not start the drive service
 
     val gear by remember { Graph.signals.snapshots.map { it.gear }.distinctUntilChanged() }
         .collectAsStateWithLifecycle(Graph.signals.snapshots.value.gear)
@@ -99,6 +101,7 @@ fun AppNav() {
         checkMemory.value = checkMemory.value.afterCover(cover)
     }
     LaunchedEffect(gear == Gear.P, unseen) { if (opensRecord(gear, unseen)) go(Screen.RECORD) }
+    LaunchedEffect(screen) { if (screen == Screen.ROUTINE) routineVisited = true }
 
     Box(Modifier.fillMaxSize().background(Palette.bg)) {
         // Replaces the screens rather than covering them, so music, cabin light and check speech stop while driving.
@@ -113,7 +116,10 @@ fun AppNav() {
                         destination, { destinationId = it.id }, rehearsed, { rehearsed = rehearsed + it },
                         onBack = { go(Screen.CHECK) }, onNext = { go(Screen.READY) },
                     )
-                    Screen.READY -> StubScreen(Screen.READY.title) { go(Screen.PREVIEW) }
+                    Screen.READY -> ReadyScreen(
+                        destination, rehearsed, routineVisited, checkMemory.value.states, startFailed, { startFailed = !it },
+                        onBack = { go(Screen.PREVIEW) },
+                    )
                     Screen.RECORD -> StubScreen(Screen.RECORD.title) { go(beforeRecord) }
                 }
             }
@@ -180,7 +186,7 @@ private fun StepTab(n: Int, title: String, state: TabState, onClick: () -> Unit)
     }
 }
 
-// shortcut: placeholder for READY / RECORD until the next commits replace it with the real screens.
+// shortcut: placeholder for RECORD until the next commit replaces it with the real screen.
 @Composable
 private fun StubScreen(title: String, onBack: () -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(28.dp)) {
