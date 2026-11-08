@@ -4,6 +4,7 @@ import ai.pleos.playground.vehicle.Vehicle
 import ai.pleos.playground.vehicle.api.model.area.SeatArea
 import ai.pleos.playground.vehicle.api.model.capability.AccessType
 import ai.pleos.playground.vehicle.api.model.capability.AreaBounds
+import ai.pleos.playground.vehicle.constant.area.SeatValue
 import ai.pleos.playground.vehicle.constant.control.LightSwitch
 import android.content.Context
 import android.content.pm.PackageManager
@@ -25,7 +26,7 @@ class PleosCabinController(context: Context) : CabinController {
     private val logged: MutableSet<String> = ConcurrentHashMap.newKeySet()
     private val io = Executors.newSingleThreadExecutor { Thread(it, "cabin").apply { isDaemon = true } }
     private val slot = LatestSlot<Pair<Int, Int>>()
-    private var vehicle: Vehicle? = null
+    private var vehicle: Vehicle? = null // cabin thread only
 
     @Volatile private var ambientArea: SeatArea? = null // set once the capability check passed
     @Volatile private var fanAreas: Map<SeatArea, AreaBounds<Int>>? = null
@@ -35,15 +36,17 @@ class PleosCabinController(context: Context) : CabinController {
     // Cabin thread, except the failure callbacks that forget what was written so the next frame retries.
     private val ambientOriginal = Remembered<String, Any>()
     private val fanOriginal = Remembered<SeatArea, Int>()
-    @Volatile private var ambientOn = false
-    @Volatile private var lastBrightness: Int? = null
-    @Volatile private var lastColor: Int? = null
+    private val ambientState = AmbientState()
 
-    init {
-        guarded(TAG, logged, "vehicle", { vehicle?.let { v -> guarded(TAG, logged, "vehicleRelease") { v.release() } }; vehicle = null }) {
-            vehicle = Vehicle(app).also { it.initialize() }
+    init { background { initVehicle() } } // no SDK call on the caller's (UI) thread
+
+    private fun initVehicle() {
+        var v: Vehicle? = null
+        guarded(TAG, logged, "vehicle", { v?.let { h -> guarded(TAG, logged, "vehicleRelease") { h.release() } }; v = null }) {
+            v = Vehicle(app).also { it.initialize() }
         }
-        if (vehicle != null) background { checkCapabilities() }
+        vehicle = v
+        if (v != null) checkCapabilities()
     }
 
     private fun granted(permission: String) = app.checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED
@@ -58,7 +61,10 @@ class PleosCabinController(context: Context) : CabinController {
         } else warn("ambientCapability", SecurityException(LIGHTS))
         if (granted(CLIMATE)) guarded(TAG, logged, "fanCapability") {
             v.getHVAC().checkHvacFanSpeedCapabilities(
-                { cfg, areas -> if (cfg.accessType == AccessType.READ_WRITE && areas.isNotEmpty()) fanAreas = areas },
+                { cfg, areas ->
+                    val front = areas.filterKeys { a -> a.values.isNotEmpty() && a.values.all { it == SeatValue.ROW_1_LEFT || it == SeatValue.ROW_1_RIGHT } }
+                    if (cfg.accessType == AccessType.READ_WRITE && front.isNotEmpty()) fanAreas = front
+                },
                 { e -> warn("fanCapability", e) },
             )
         } else warn("fanCapability", SecurityException(CLIMATE))
@@ -109,9 +115,9 @@ class PleosCabinController(context: Context) : CabinController {
     }
 
     /** Fire a setter; its result lands in [lastWriteOk], and a failure runs [forget]. */
-    private fun write(name: String, forget: () -> Unit = {}, call: (ok: () -> Unit, fail: (Exception) -> Unit) -> Unit) {
-        val failed = { e: Throwable -> warn(name, e); lastWriteOk = false; forget() }
-        guarded(TAG, logged, name, onFail = failed) { call({ lastWriteOk = true }, { e -> failed(e) }) }
+    private fun write(name: String, forget: () -> Unit = {}, done: CountDownLatch? = null, call: (ok: () -> Unit, fail: (Exception) -> Unit) -> Unit) {
+        val failed = { e: Throwable -> warn(name, e); lastWriteOk = false; forget(); if (done != null) done.countDown() }
+        guarded(TAG, logged, name, onFail = failed) { call({ lastWriteOk = true; if (done != null) done.countDown() }, { e -> failed(e) }) }
     }
 
     private fun drain() {
@@ -120,22 +126,24 @@ class PleosCabinController(context: Context) : CabinController {
         while (true) {
             val (brightness, argb) = slot.take() ?: return
             val light = v.getLight()
-            if (!ambientOn) {
-                read<LightSwitch>("ambientSwitchGet") { ok, fail -> light.getAmbientLightSwitch(area, ok, fail) }?.let { ambientOriginal.remember("switch", it) }
-                read<Int>("ambientBrightnessGet") { ok, fail -> light.getAmbientLightBrightness(area, ok, fail) }?.let { ambientOriginal.remember("brightness", it) }
-                read<Int>("ambientColorGet") { ok, fail -> light.getAmbientLightBrightnessColor(area, ok, fail) }?.let { ambientOriginal.remember("color", it) }
-                write("ambientSwitch", { ambientOn = false }) { ok, fail -> light.setAmbientLightSwitch(area, LightSwitch.ON, { _, _ -> ok() }, fail) }
-                ambientOn = true
+            val applied = ambientState.apply(brightness, argb, { readOriginals(light, area) }) { w ->
+                when (w) {
+                    AmbientWrite.SwitchOn -> write("ambientSwitch", { ambientState.failed(w) }) { ok, fail -> light.setAmbientLightSwitch(area, LightSwitch.ON, { _, _ -> ok() }, fail) }
+                    is AmbientWrite.Brightness -> write("ambientBrightness", { ambientState.failed(w) }) { ok, fail -> light.setAmbientLightBrightness(area, w.value, { _, _ -> ok() }, fail) }
+                    is AmbientWrite.Color -> write("ambientColor", { ambientState.failed(w) }) { ok, fail -> light.setAmbientLightBrightnessColor(area, w.value, { _, _ -> ok() }, fail) }
+                }
             }
-            if (brightness != lastBrightness) {
-                lastBrightness = brightness
-                write("ambientBrightness", { lastBrightness = null }) { ok, fail -> light.setAmbientLightBrightness(area, brightness, { _, _ -> ok() }, fail) }
-            }
-            if (argb != lastColor) {
-                lastColor = argb
-                write("ambientColor", { lastColor = null }) { ok, fail -> light.setAmbientLightBrightnessColor(area, argb, { _, _ -> ok() }, fail) }
-            }
+            if (!applied) { warn("ambientOriginal", IllegalStateException("original switch unreadable, light left alone")); lastWriteOk = false }
         }
+    }
+
+    /** Reads and remembers what restore will put back; a property that can't be read is never written. */
+    private fun readOriginals(light: ai.pleos.playground.vehicle.api.Light, area: SeatArea): Known {
+        val sw = read<LightSwitch>("ambientSwitchGet") { ok, fail -> light.getAmbientLightSwitch(area, ok, fail) }?.also { ambientOriginal.remember("switch", it) }
+        if (sw == null) return Known(false, false, false)
+        val b = read<Int>("ambientBrightnessGet") { ok, fail -> light.getAmbientLightBrightness(area, ok, fail) }?.also { ambientOriginal.remember("brightness", it) }
+        val c = read<Int>("ambientColorGet") { ok, fail -> light.getAmbientLightBrightnessColor(area, ok, fail) }?.also { ambientOriginal.remember("color", it) }
+        return Known(true, b != null, c != null)
     }
 
     private fun quietNow(areas: Map<SeatArea, AreaBounds<Int>>) {
@@ -147,22 +155,28 @@ class PleosCabinController(context: Context) : CabinController {
         }
     }
 
+    /** Puts back what was remembered and waits (briefly) for the car to confirm, so a following release() can't drop it. */
     private fun restoreNow() {
         val v = vehicle ?: return
         val original = ambientOriginal.take()
-        ambientOn = false; lastBrightness = null; lastColor = null
+        ambientState.reset()
+        val fan = fanOriginal.take()
         val area = ambientArea
+        val steps = mutableListOf<(CountDownLatch) -> Unit>()
         if (area != null) guarded(TAG, logged, "ambientRestore") {
             val light = v.getLight()
             // Switch last: the values go back while the light is still on.
-            (original["brightness"] as? Int)?.let { b -> write("ambientBrightness") { ok, fail -> light.setAmbientLightBrightness(area, b, { _, _ -> ok() }, fail) } }
-            (original["color"] as? Int)?.let { c -> write("ambientColor") { ok, fail -> light.setAmbientLightBrightnessColor(area, c, { _, _ -> ok() }, fail) } }
-            (original["switch"] as? LightSwitch)?.let { s -> write("ambientSwitch") { ok, fail -> light.setAmbientLightSwitch(area, s, { _, _ -> ok() }, fail) } }
+            (original["brightness"] as? Int)?.let { b -> steps += { d -> write("ambientBrightness", done = d) { ok, fail -> light.setAmbientLightBrightness(area, b, { _, _ -> ok() }, fail) } } }
+            (original["color"] as? Int)?.let { c -> steps += { d -> write("ambientColor", done = d) { ok, fail -> light.setAmbientLightBrightnessColor(area, c, { _, _ -> ok() }, fail) } } }
+            (original["switch"] as? LightSwitch)?.let { sw -> steps += { d -> write("ambientSwitch", done = d) { ok, fail -> light.setAmbientLightSwitch(area, sw, { _, _ -> ok() }, fail) } } }
         }
         guarded(TAG, logged, "fanRestore") {
             val hvac = v.getHVAC()
-            for ((a, s) in fanOriginal.take()) write("fanSet") { ok, fail -> hvac.setHvacFanSpeed(a, s, { _, _ -> ok() }, fail) }
+            for ((a, s) in fan) steps += { d -> write("fanSet", done = d) { ok, fail -> hvac.setHvacFanSpeed(a, s, { _, _ -> ok() }, fail) } }
         }
+        val done = CountDownLatch(steps.size)
+        steps.forEach { it(done) }
+        guarded(TAG, logged, "restoreWait") { done.await(1, TimeUnit.SECONDS) }
         lastWriteOk = true
     }
 
