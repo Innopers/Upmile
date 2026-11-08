@@ -38,6 +38,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.upmile.Graph
+import app.upmile.core.routine.Mood
+import app.upmile.core.routine.planFor
 import app.upmile.core.vehicle.Gear
 import app.upmile.ui.theme.Palette
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -70,6 +72,7 @@ fun AppNav() {
     var screen by rememberSaveable { mutableStateOf(Screen.ROUTINE) }
     var reached by rememberSaveable { mutableIntStateOf(1) }
     var beforeRecord by rememberSaveable { mutableStateOf(Screen.ROUTINE) }
+    var mood by rememberSaveable { mutableStateOf(Mood.A_LITTLE) }
     // Today's destination; 13b's Preview sets it.
     var destinationId by rememberSaveable { mutableStateOf(Graph.routes.destinations().first().id) }
     val destination = Graph.routes.destinations().first { it.id == destinationId }
@@ -97,8 +100,8 @@ fun AppNav() {
             Header(screen.step, reached, onStep = { s -> go(Screen.entries.first { it.step == s }) }, onRecord = { go(Screen.RECORD) })
             Box(Modifier.weight(1f).fillMaxWidth().padding(start = 36.dp, end = 36.dp, top = 20.dp, bottom = 32.dp)) {
                 when (screen) {
-                    Screen.ROUTINE -> StubScreen(Screen.ROUTINE.title) { go(Screen.ROUTINE) }
-                    Screen.CHECK -> StubScreen(Screen.CHECK.title) { go(Screen.ROUTINE) }
+                    Screen.ROUTINE -> RoutineScreen(mood, { mood = it }, destination, onNext = { go(Screen.CHECK) })
+                    Screen.CHECK -> CheckScreen(planFor(mood), destination, onBack = { go(Screen.ROUTINE) }, onNext = { go(Screen.PREVIEW) })
                     Screen.PREVIEW -> StubScreen(Screen.PREVIEW.title) { go(Screen.CHECK) }
                     Screen.READY -> StubScreen(Screen.READY.title) { go(Screen.PREVIEW) }
                     Screen.RECORD -> StubScreen(Screen.RECORD.title) { go(beforeRecord) }
