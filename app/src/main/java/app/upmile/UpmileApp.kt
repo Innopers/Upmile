@@ -9,10 +9,16 @@ import ai.pleos.playground.vehicle.Vehicle
 class UpmileApp : Application() {
     override fun onCreate() {
         super.onCreate()
+        Graph.init(this, demoMode = false)
         // Dead branch: forces compile-time linkage against each Pleos SDK.
         @Suppress("SimplifyBooleanWithConstants", "KotlinConstantConditions")
         if (BuildConfig.DEBUG && false) {
             listOf(Vehicle::class.java, NaviHelper::class.java, FusedLocation::class.java, TextToSpeech::class.java)
         }
+    }
+
+    override fun onTerminate() { // emulator only; a real device just kills the process
+        Graph.close()
+        super.onTerminate()
     }
 }
