@@ -3,8 +3,11 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-export ANDROID_HOME="${ANDROID_HOME:-/Volumes/DevSSD/Android/sdk}"
-export GRADLE_USER_HOME="${GRADLE_USER_HOME:-/Volumes/DevSSD/gradle}"
+if [[ -z "${ANDROID_HOME:-}" ]]; then
+  echo "ANDROID_HOME이 설정되지 않았습니다. Android SDK 경로를 지정하세요." >&2
+  exit 1
+fi
+export ANDROID_HOME
 
 ./gradlew :app:assembleRelease
 mkdir -p apk
@@ -13,4 +16,9 @@ cp app/build/outputs/apk/release/app-release.apk "$OUT"
 
 APKSIGNER="$(ls -d "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)"
 echo "크기: $(du -h "$OUT" | cut -f1)"
-"$APKSIGNER" verify --print-certs "$OUT" | grep -E "certificate DN|Verified"
+CERTS="$("$APKSIGNER" verify --print-certs "$OUT")"
+echo "$CERTS" | grep -E "certificate DN"
+if echo "$CERTS" | grep -q "Android Debug"; then
+  echo "릴리스 키가 없어 debug 키로 서명되었습니다. local.properties의 upmile.* 키를 확인하세요." >&2
+  exit 1
+fi
