@@ -13,6 +13,7 @@ import app.upmile.core.vehicle.ScenarioJson
 import app.upmile.core.vehicle.ScenarioVehicleSignals
 import app.upmile.core.voice.QueuedVoice
 import app.upmile.core.voice.SpeechEngine
+import app.upmile.core.voice.Voice
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -28,7 +29,8 @@ object SilentEngine : SpeechEngine {
     override fun stop() {}
 }
 
-private const val DEMO_DESTINATION = "commute"
+/** The destination [runDemo] replays; the app shows it on the 체험 모드 cover. */
+const val DEMO_DESTINATION = "commute"
 
 /**
  * The one 체험 모드 runner, shared by the app and headless tests. Replays the recorded commute drive through the real
@@ -38,6 +40,7 @@ private const val DEMO_DESTINATION = "commute"
  * the app follow the replayed vehicle (e.g. show the gear-D cover).
  * Callers must pass a [store] backed by its own file (`record_demo.json`) so the demo never touches the real record.
  * The spec §9 story previews all commute segments before driving, so all of them count as rehearsed.
+ * [voice] takes the lines (the app passes its one queue, so they never fight a second one); null queues them on [speech].
  */
 suspend fun runDemo(
     readAsset: (String) -> String,
@@ -46,6 +49,7 @@ suspend fun runDemo(
     stepMs: Long = 200,
     pace: suspend (Long) -> Unit = {},
     onFrame: (ScenarioFrame) -> Unit = {},
+    voice: Voice? = null,
 ): Record {
     val routes = AssetRouteRepository(readAsset)
     val route = routes.route(DEMO_DESTINATION)
@@ -56,7 +60,7 @@ suspend fun runDemo(
         var now = 0L
         val signals = ScenarioVehicleSignals(frames, clock = { now })
         val loop = DriveLoop(
-            DriveTracker(route, segments), QueuedVoice(speech, scope = scope), store,
+            DriveTracker(route, segments), voice ?: QueuedVoice(speech, scope = scope), store,
             RegionLocator(readAsset("regions/sigungu.geojson")), "demo-commute", segments.map { it.id }.toSet(),
             System::currentTimeMillis,
         )
