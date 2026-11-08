@@ -89,12 +89,42 @@ class RoadTemplatesTest {
         assertEquals("2차로로 진입", s.cues[3].second)
     }
 
+    @Test fun left_crossRoadShowsItsLanes_soTheTargetLaneCanBeRead() {
+        val s = build(SegmentType.MULTILANE_LEFT)
+        val end = s.cameraPath.last()
+        // markings (< 1 m wide) running along the cross road where the car drives out
+        val lines = s.strips.filter { st -> st.width < 1f && st.center.all { it.z == st.center[0].z } &&
+            end.x in st.center.minOf { it.x }..st.center.maxOf { it.x } }.map { it.center[0].z }
+        val nearEdge = -90f; val lane = 3.5f
+        (0..4).forEach { k -> assertTrue("line at lane offset $k", lines.any { kotlin.math.abs(it - (nearEdge - k * lane)) < .3f }) }
+        // the target lane is bounded by a marking on each side, and the car ends inside it
+        assertTrue(lines.any { it > end.z && it - end.z < lane / 2 + .3f } && lines.any { it < end.z && end.z - it < lane / 2 + .3f })
+    }
+
     @Test fun ramp_cuesLandInTheirSections() {
         val s = build(SegmentType.GARAGE_RAMP); val arc = arcLengths(s.cameraPath)
         assertTrue(cueArc(s, 1) in arc[1]..arc[4])
         assertTrue(cueArc(s, 2) in arc[5]..arc[8])                   // turn begins after the 30 m straight
         assertTrue(cueArc(s, 3) in arc[15]..arc[17])
         assertTrue(cueArc(s, 4) >= arc.last() - 5f)
+    }
+
+    @Test fun openRoads_runOnIntoTheFog_pastTheLastCameraPoint() {
+        listOf(SegmentType.HIGHWAY_MERGE, SegmentType.MULTILANE_LEFT, SegmentType.ROUNDABOUT).forEach { t ->
+            val s = build(t); val (a, b) = s.cameraPath.takeLast(2)
+            val d = hypot(b.x - a.x, b.z - a.z)
+            val x = b.x + (b.x - a.x) / d * 200f; val z = b.z + (b.z - a.z) / d * 200f // 200 m on along the final heading
+            assertTrue(t.name, s.strips.any { st -> st.width >= 3f && st.center.zipWithNext().any { (p, q) -> onSegment(x, z, p, q, st.width / 2) } })
+        }
+    }
+
+    @Test fun generic_drivesInTheRightLane_notOnTheCentreLine() =
+        assertTrue(build(SegmentType.ROUNDABOUT).cameraPath.all { it.x > 1f })
+
+    private fun onSegment(x: Float, z: Float, p: Vec3, q: Vec3, r: Float): Boolean {
+        val dx = q.x - p.x; val dz = q.z - p.z
+        val t = (((x - p.x) * dx + (z - p.z) * dz) / (dx * dx + dz * dz)).coerceIn(0f, 1f)
+        return hypot(x - p.x - dx * t, z - p.z - dz * t) <= r
     }
 
     @Test fun badParams_doNotBreakGeometry() {
