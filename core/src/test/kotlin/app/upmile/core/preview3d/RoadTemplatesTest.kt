@@ -89,6 +89,18 @@ class RoadTemplatesTest {
         assertEquals("2차로로 진입", s.cues[3].second)
     }
 
+    @Test fun left_crossRoadShowsItsLanes_soTheTargetLaneCanBeRead() {
+        val s = build(SegmentType.MULTILANE_LEFT)
+        val end = s.cameraPath.last()
+        // markings (< 1 m wide) running along the cross road where the car drives out
+        val lines = s.strips.filter { st -> st.width < 1f && st.center.all { it.z == st.center[0].z } &&
+            end.x in st.center.minOf { it.x }..st.center.maxOf { it.x } }.map { it.center[0].z }
+        val nearEdge = -90f; val lane = 3.5f
+        (0..4).forEach { k -> assertTrue("line at lane offset $k", lines.any { kotlin.math.abs(it - (nearEdge - k * lane)) < .3f }) }
+        // the target lane is bounded by a marking on each side, and the car ends inside it
+        assertTrue(lines.any { it > end.z && it - end.z < lane / 2 + .3f } && lines.any { it < end.z && end.z - it < lane / 2 + .3f })
+    }
+
     @Test fun ramp_cuesLandInTheirSections() {
         val s = build(SegmentType.GARAGE_RAMP); val arc = arcLengths(s.cameraPath)
         assertTrue(cueArc(s, 1) in arc[1]..arc[4])

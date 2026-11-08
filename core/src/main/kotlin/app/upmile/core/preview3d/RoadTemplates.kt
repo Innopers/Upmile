@@ -115,12 +115,23 @@ object RoadTemplates {
         val crossZ = stopZ - crossW / 2
         val laneX = -half + (fromLane.coerceIn(1, laneCount) - 0.5f) * LANE
         val outZ = crossZ - (TARGET_LANE - 0.5f) * LANE // TARGET_LANE-th lane counted from the near edge of the cross road
+        val farX = -half - 45f - RUNOUT; val nearX = half + 20f
         val strips = mutableListOf(
             Strip(listOf(v(0f, 0f), v(0f, stopZ)), laneCount * LANE, ASPHALT),
-            Strip(listOf(v(-half - 45f - RUNOUT, crossZ), v(half + 20f, crossZ)), crossW, ASPHALT),
+            Strip(listOf(v(farX, crossZ), v(nearX, crossZ)), crossW, ASPHALT),
             Strip(listOf(v(-half, 0f), v(-half, stopZ)), 0.15f, YELLOW),
             Strip(listOf(v(-half, stopZ), v(half, stopZ)), 0.5f, WHITE),
+            Strip(listOf(v(farX, crossZ - crossW / 2 + 0.2f), v(nearX, crossZ - crossW / 2 + 0.2f)), 0.15f, WHITE), // far edge
         )
+        // Cross-road markings on both arms (not inside the intersection): near edge, lane dividers, double yellow centre line.
+        for ((x0, x1) in listOf(farX to -half, half to nearX)) {
+            fun line(z: Float, w: Float, c: Long, dashed: Boolean = false) = Strip(listOf(v(x0, z), v(x1, z)), w, c, dashed)
+            strips += line(stopZ - 0.2f, 0.15f, WHITE)
+            for (k in 1 until (crossW / 2 / LANE).toInt()) { strips += line(crossZ + k * LANE, 0.15f, WHITE, true); strips += line(crossZ - k * LANE, 0.15f, WHITE, true) }
+            strips += line(crossZ + 0.15f, 0.12f, YELLOW); strips += line(crossZ - 0.15f, 0.12f, YELLOW)
+        }
+        // Crosswalk across the approach, between the stop line and the cross traffic (Korean order: stop line, then crosswalk).
+        for (i in 0 until 8) { val x = -half + (i + 0.5f) * (2 * half / 8); strips += Strip(listOf(v(x, stopZ - 0.8f), v(x, stopZ - 4.8f)), 0.5f, WHITE) }
         for (i in 1 until laneCount) strips += Strip(listOf(v(-half + i * LANE, 0f), v(-half + i * LANE, stopZ)), 0.15f, WHITE, dashed = true)
         for (i in 0 until turnLanes.coerceIn(1, laneCount)) { // turn lanes sit on the left of the approach
             val x = -half + (i + 0.5f) * LANE
