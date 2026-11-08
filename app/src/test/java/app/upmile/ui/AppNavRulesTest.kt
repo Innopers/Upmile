@@ -17,6 +17,10 @@ class AppNavRulesTest {
 
     @Test fun unknownGear_coversFailSafe() = assertTrue(coverShown(restricted = false, gear = Gear.UNKNOWN))
 
+    @Test fun coverComingOn_clearsTheRehearsal() = assertEquals(emptySet<String>(), rehearsalAfterCover(setOf("commute:highway_merge:1"), coverOn = true))
+
+    @Test fun coverGoingOff_keepsTheRehearsal() = assertEquals(setOf("a"), rehearsalAfterCover(setOf("a"), coverOn = false))
+
     @Test fun unseenDriveInPark_opensRecord() = assertTrue(opensRecord(Gear.P, "s1"))
 
     @Test fun unseenDriveNotInPark_waits() = assertFalse(opensRecord(Gear.D, "s1"))

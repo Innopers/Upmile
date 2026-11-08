@@ -1,5 +1,7 @@
 package app.upmile
 
+import ai.pleos.playground.navi.data.RouteInfo
+import ai.pleos.playground.navi.helper.NaviHelper
 import android.car.Car
 import android.car.drivingstate.CarUxRestrictionsManager
 import android.content.Context
@@ -14,6 +16,7 @@ import app.upmile.core.location.ScenarioLocationSource
 import app.upmile.core.record.RecordStore
 import app.upmile.core.record.RegionLocator
 import app.upmile.core.route.AssetRouteRepository
+import app.upmile.core.route.Destination
 import app.upmile.core.route.RouteRepository
 import app.upmile.core.vehicle.ScenarioJson
 import app.upmile.core.vehicle.ScenarioVehicleSignals
@@ -43,13 +46,14 @@ object Graph {
     const val VOICE_TIMEOUT_MS = LineTracker.MAX_TOTAL_MS + 8_000
 
     private const val TAG = "Graph"
-    private const val PERMISSION_FUSED_LOCATION = "pleos.car.permission.FUSED_LOCATION"
+    const val PERMISSION_FUSED_LOCATION = "pleos.car.permission.FUSED_LOCATION"
 
     private lateinit var app: Context
     private var scope: CoroutineScope? = null
     private var engine: PleosVoice? = null
     private var car: Car? = null
     private var ux: CarUxRestrictionsManager? = null
+    private var navi: NaviHelper? = null
     private val logged: MutableSet<String> = ConcurrentHashMap.newKeySet()
     private val _restricted = MutableStateFlow(false)
 
@@ -102,6 +106,19 @@ object Graph {
         serviceStartAttempted = serviceStartAttempted,
     )
 
+    /** Hands today's destination to the car's navigation. A failure is only logged: the drive still guides by voice. Main thread. */
+    fun sendToNavi(d: Destination) = guarded(TAG, logged, "naviRoute") {
+        // Kept for the app's life: calls made before the service binds wait in the SDK's queue.
+        val n = navi ?: NaviHelper(app).also {
+            it.initialize({ Log.i(TAG, "navi connected") }, { e -> Log.w(TAG, "navi connect failed", e) })
+            navi = it
+        }
+        // 3.0.5 reordered RouteInfo's fields; named arguments keep latitude and longitude apart.
+        // Our destinations have no TMAP POI, so the navigation routes to the coordinates.
+        n.requestRoute(RouteInfo(latitude = d.lat, longitude = d.lon, poiName = d.name, poiId = "", poiSubId = "", address = ""))
+        Log.i(TAG, "navi route requested: ${d.name} (${d.lat}, ${d.lon})")
+    }
+
     private fun granted(permission: String) = app.checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED
 
     /** Register once, unregister in [close]: the official CarUxRestrictionsManager pattern. */
@@ -122,7 +139,8 @@ object Graph {
     fun close() {
         guarded(TAG, logged, "uxUnregister") { ux?.unregisterListener() }
         guarded(TAG, logged, "carDisconnect") { car?.disconnect() }
-        ux = null; car = null
+        guarded(TAG, logged, "naviRelease") { navi?.release() }
+        ux = null; car = null; navi = null
         location.stop()
         signals.stop()
         engine?.release(); engine = null

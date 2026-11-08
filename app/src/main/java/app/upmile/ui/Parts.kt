@@ -10,11 +10,13 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -53,13 +55,21 @@ fun Modifier.card(padding: Dp = 28.dp): Modifier =
 fun Label(text: String, modifier: Modifier = Modifier) =
     Text(text, modifier, color = Palette.sub, fontSize = 18.sp, letterSpacing = .4.sp)
 
-/** Mockup `.btn`: accent when [primary], else ghost. [beckon] pulses a ring around it to draw the eye. */
+/** Mockup `.btn`: accent when [primary], else ghost. [beckon] pulses a ring around it to draw the eye; [icon] leads the text. */
 @Composable
-fun UpButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, primary: Boolean = false, beckon: Boolean = false) {
+fun UpButton(
+    text: String, onClick: () -> Unit, modifier: Modifier = Modifier, primary: Boolean = false, beckon: Boolean = false,
+    icon: ImageVector? = null, enabled: Boolean = true,
+) {
+    val content = when {
+        !enabled -> Palette.dim
+        primary -> Palette.onAccent
+        else -> Palette.text
+    }
     val ring = if (beckon) {
         rememberInfiniteTransition("beckon").animateFloat(.35f, 1f, infiniteRepeatable(tween(900), RepeatMode.Reverse), "ring")
     } else null
-    Box(
+    Row(
         modifier
             .height(76.dp)
             .drawBehind {
@@ -71,11 +81,13 @@ fun UpButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, p
                 )
             }
             .clip(ButtonShape)
-            .background(if (primary) Palette.accent else Palette.surface3)
-            .clickable(role = Role.Button, onClick = onClick),
-        contentAlignment = Alignment.Center,
+            .background(if (primary && enabled) Palette.accent else Palette.surface3)
+            .clickable(enabled = enabled, role = Role.Button, onClick = onClick),
+        horizontalArrangement = Arrangement.spacedBy(14.dp, Alignment.CenterHorizontally),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(text, color = if (primary) Palette.onAccent else Palette.text, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+        if (icon != null) Icon(icon, null, Modifier.size(28.dp), tint = content)
+        Text(text, color = content, fontSize = 24.sp, fontWeight = FontWeight.Bold)
     }
 }
 

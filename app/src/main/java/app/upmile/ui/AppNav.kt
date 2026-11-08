@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
@@ -53,6 +52,9 @@ enum class Screen(val step: Int?, val title: String) {
 /** Every screen hides while driving. An unknown gear counts as driving (fail safe). */
 internal fun coverShown(restricted: Boolean, gear: Gear) = restricted || gear != Gear.P
 
+/** A preview counts for the next departure only: the cover coming on (the drive has its ids by then) clears it. */
+internal fun rehearsalAfterCover(rehearsed: Set<String>, coverOn: Boolean) = if (coverOn) emptySet() else rehearsed
+
 /** A finished drive the user has not looked at yet opens the record once the car is in P. */
 internal fun opensRecord(gear: Gear, unseenSessionId: String?) = gear == Gear.P && unseenSessionId != null
 
@@ -75,9 +77,13 @@ fun AppNav() {
     var mood by rememberSaveable { mutableStateOf(Mood.A_LITTLE) }
     // What the check has said this departure; kept across screens, cleared when the cover comes on.
     val checkMemory = remember { mutableStateOf(CheckMemory()) }
-    // Today's destination; 13b's Preview sets it.
+    // Today's destination; Preview changes it.
     var destinationId by rememberSaveable { mutableStateOf(Graph.routes.destinations().first().id) }
     val destination = Graph.routes.destinations().first { it.id == destinationId }
+    // Segment ids whose preview ran to the end this departure; Ready counts them and the drive stamps them.
+    var rehearsed by remember { mutableStateOf(emptySet<String>()) }
+    var routineVisited by rememberSaveable { mutableStateOf(false) }
+    var startFailed by remember { mutableStateOf(false) } // the last 안내 시작 could not start the drive service
 
     val gear by remember { Graph.signals.snapshots.map { it.gear }.distinctUntilChanged() }
         .collectAsStateWithLifecycle(Graph.signals.snapshots.value.gear)
@@ -95,8 +101,10 @@ fun AppNav() {
     LaunchedEffect(cover) {
         Log.i(TAG, "driving cover ${if (cover) "on" else "off"} (gear=$gear restricted=$restricted, screen=$screen)")
         checkMemory.value = checkMemory.value.afterCover(cover)
+        rehearsed = rehearsalAfterCover(rehearsed, cover)
     }
     LaunchedEffect(gear == Gear.P, unseen) { if (opensRecord(gear, unseen)) go(Screen.RECORD) }
+    LaunchedEffect(screen) { if (screen == Screen.ROUTINE) routineVisited = true }
 
     Box(Modifier.fillMaxSize().background(Palette.bg)) {
         // Replaces the screens rather than covering them, so music, cabin light and check speech stop while driving.
@@ -107,9 +115,15 @@ fun AppNav() {
                 when (screen) {
                     Screen.ROUTINE -> RoutineScreen(mood, { mood = it }, destination, onNext = { go(Screen.CHECK) })
                     Screen.CHECK -> CheckScreen(planFor(mood), destination, checkMemory, onBack = { go(Screen.ROUTINE) }, onNext = { go(Screen.PREVIEW) })
-                    Screen.PREVIEW -> StubScreen(Screen.PREVIEW.title) { go(Screen.CHECK) }
-                    Screen.READY -> StubScreen(Screen.READY.title) { go(Screen.PREVIEW) }
-                    Screen.RECORD -> StubScreen(Screen.RECORD.title) { go(beforeRecord) }
+                    Screen.PREVIEW -> PreviewScreen(
+                        destination, { destinationId = it.id }, rehearsed, { rehearsed = rehearsed + it },
+                        onBack = { go(Screen.CHECK) }, onNext = { go(Screen.READY) },
+                    )
+                    Screen.READY -> ReadyScreen(
+                        destination, rehearsed, routineVisited, checkMemory.value.states, startFailed, { startFailed = !it },
+                        onBack = { go(Screen.PREVIEW) },
+                    )
+                    Screen.RECORD -> RecordScreen(onBack = { go(beforeRecord) }, onHome = { go(Screen.ROUTINE) })
                 }
             }
         }
@@ -172,14 +186,5 @@ private fun StepTab(n: Int, title: String, state: TabState, onClick: () -> Unit)
             Text("$n", color = digit, fontSize = 18.sp, fontWeight = FontWeight.Bold)
         }
         Text(title, color = if (active) Palette.text else Palette.sub, fontSize = 21.sp)
-    }
-}
-
-// shortcut: placeholder for PREVIEW / READY / RECORD until Task 13b replaces it with the real screens.
-@Composable
-private fun StubScreen(title: String, onBack: () -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(28.dp)) {
-        Text(title, fontSize = 40.sp, fontWeight = FontWeight.Bold)
-        UpButton("이전", onBack, Modifier.width(240.dp))
     }
 }

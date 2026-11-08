@@ -4,7 +4,8 @@ import app.upmile.core.drive.DriveEvent
 import app.upmile.core.model.SegmentType
 
 object ExperienceRules {
-    private val segmentCard = mapOf(
+    /** The card each segment type earns when driven; the UI marks these as today's challenges. */
+    val segmentCard = mapOf(
         SegmentType.HIGHWAY_MERGE to ExperienceType.HIGHWAY_MERGE,
         SegmentType.MULTILANE_LEFT to ExperienceType.MULTILANE_LEFT,
         SegmentType.ROUNDABOUT to ExperienceType.ROUNDABOUT,
