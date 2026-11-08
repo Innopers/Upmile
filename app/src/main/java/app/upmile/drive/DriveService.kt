@@ -14,9 +14,13 @@ import app.upmile.BuildConfig
 import app.upmile.Graph
 import app.upmile.core.drive.DriveLoop
 import app.upmile.core.drive.DriveTracker
+import app.upmile.core.location.LocationSource
 import app.upmile.core.record.Record
+import app.upmile.core.record.RecordStore
 import app.upmile.core.route.SegmentFinder
 import app.upmile.core.vehicle.Gear
+import app.upmile.core.vehicle.VehicleSignals
+import app.upmile.core.voice.Voice
 import java.util.UUID
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -27,8 +31,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /** The drive is over once its arrival is in the record (even if the UI already cleared unseenSessionId) and the car is in P. */
 internal fun driveFinished(record: Record, sessionId: String, gear: Gear): Boolean =
@@ -41,54 +45,75 @@ internal fun driveFinished(record: Record, sessionId: String, gear: Gear): Boole
 class DriveService : Service() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private var drive: Job? = null
+    private var driveLocation: LocationSource? = null
+    private var stopId = 0 // main thread only: the newest start, so stopping never strands or drops a later one
     private val logged = mutableSetOf<String>() // touched by the drive coroutine only
 
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         promote() // every startForegroundService must be answered, even an ignored one
+        stopId = startId
         if (drive?.isActive == true) { Log.i(TAG, "drive already running; start ignored"); return START_NOT_STICKY }
         val destinationId = intent?.getStringExtra(EXTRA_DESTINATION)
-        if (destinationId == null) { stopSelf(); return START_NOT_STICKY }
+        if (destinationId == null) { stopSelf(startId); return START_NOT_STICKY }
         val rehearsed = intent.getStringArrayExtra(EXTRA_REHEARSED)?.toSet().orEmpty()
+        // One set of sources per drive, so a later Graph.init (demo switch) can't mix them mid-drive.
+        val signals = Graph.signals
+        val location = Graph.location
         // Main thread: the SDK adapters register their listeners here. Restarting the vehicle signals picks up a
         // CAR_SPEED grant made after app start.
-        Graph.signals.stop()
-        Graph.signals.start()
-        Graph.location.start()
+        signals.stop()
+        signals.start()
+        location.start()
+        driveLocation = location
         _running.value = true
-        drive = scope.launch { run(destinationId, rehearsed) }
+        drive = scope.launch { run(destinationId, rehearsed, signals, location, Graph.store, Graph.voice) }
         return START_NOT_STICKY
     }
 
-    private suspend fun run(destinationId: String, rehearsed: Set<String>) {
+    private suspend fun run(
+        destinationId: String, rehearsed: Set<String>,
+        signals: VehicleSignals, location: LocationSource, store: RecordStore, voice: Voice,
+    ) {
         val sessionId = UUID.randomUUID().toString()
         val loop = try {
             val route = Graph.routes.route(destinationId)
             val segments = SegmentFinder.find(route, Graph.routes.destinations().first { it.id == destinationId }.hasGarage)
             Log.i(TAG, "drive $sessionId to $destinationId: ${segments.map { it.id }}, rehearsed $rehearsed")
-            DriveLoop(DriveTracker(route, segments), Graph.voice, Graph.store, Graph.regions, sessionId, rehearsed, System::currentTimeMillis)
+            DriveLoop(DriveTracker(route, segments), voice, store, Graph.regions, sessionId, rehearsed, System::currentTimeMillis)
         } catch (e: Exception) {
             Log.e(TAG, "cannot start drive to $destinationId", e)
-            stopSelf()
+            stopFromDrive()
             return
         }
-        var n = 0L
-        while (scope.isActive) {
-            val s = Graph.signals.snapshots.value
-            val p = Graph.location.location.value
-            try { loop.tick(s, p) } catch (e: Exception) { if (logged.add("tick")) Log.w(TAG, "tick failed", e) }
-            loop.lastError?.let { if (logged.add("save")) Log.w(TAG, "record save failed; retrying every tick", it) }
-            // debug builds only: the app is hidden in D, so this is how a test drive is followed
-            if (BuildConfig.DEBUG && n++ % STATUS_EVERY == 0L) Log.d(TAG, "tick gear=${s.gear} v=${s.speedMps} seated=${s.driverSeated} at=$p")
-            if (driveFinished(Graph.store.records.value, sessionId, s.gear)) {
-                Log.i(TAG, "drive $sessionId saved; stopping")
-                stopSelf()
-                return
+        var finished = false
+        try {
+            var n = 0L
+            while (true) {
+                val s = signals.snapshots.value
+                val p = location.location.value
+                try { loop.tick(s, p) } catch (e: Exception) { if (logged.add("tick")) Log.w(TAG, "tick failed", e) }
+                loop.lastError?.let { if (logged.add("save")) Log.w(TAG, "record save failed; retrying every tick", it) }
+                // debug builds only: the app is hidden in D, so this is how a test drive is followed
+                if (BuildConfig.DEBUG && n++ % STATUS_EVERY == 0L) Log.d(TAG, "tick gear=${s.gear} v=${s.speedMps} seated=${s.driverSeated} at=$p")
+                if (driveFinished(store.records.value, sessionId, s.gear)) {
+                    finished = true
+                    Log.i(TAG, "drive $sessionId saved; stopping")
+                    stopFromDrive()
+                    return
+                }
+                delay(TICK_MS)
             }
-            delay(TICK_MS)
+        } finally {
+            // Cancelled (주행 종료): drop queued approach lines. Runs after the last tick, so none can slip in later.
+            // A finished drive keeps its arrival line playing.
+            if (!finished) voice.stop()
         }
     }
+
+    /** On the main thread, serialized with onStartCommand, so a start that arrived meanwhile is never stranded. */
+    private suspend fun stopFromDrive() = withContext(Dispatchers.Main) { stopSelf(stopId) }
 
     private fun promote() {
         val nm = getSystemService(NotificationManager::class.java)
@@ -105,7 +130,7 @@ class DriveService : Service() {
 
     override fun onDestroy() {
         scope.cancel()
-        Graph.location.stop()
+        driveLocation?.stop()
         _running.value = false
         super.onDestroy()
     }
@@ -122,12 +147,17 @@ class DriveService : Service() {
         private val _running = MutableStateFlow(false)
         val running: StateFlow<Boolean> = _running.asStateFlow()
 
-        fun start(context: Context, destinationId: String, rehearsedIds: Collection<String>) {
+        /** False if the system refused (API 31+ background start: ForegroundServiceStartNotAllowedException). */
+        fun start(context: Context, destinationId: String, rehearsedIds: Collection<String>): Boolean = try {
             context.startForegroundService(
                 Intent(context, DriveService::class.java)
                     .putExtra(EXTRA_DESTINATION, destinationId)
                     .putExtra(EXTRA_REHEARSED, rehearsedIds.toTypedArray())
             )
+            true
+        } catch (e: IllegalStateException) {
+            Log.w(TAG, "drive service not started", e)
+            false
         }
 
         fun stop(context: Context) { context.stopService(Intent(context, DriveService::class.java)) }
