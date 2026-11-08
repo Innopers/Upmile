@@ -63,7 +63,9 @@ class DriveTracker(
                     .forEach { hardMoment += it.id }
             }
         }
-        if (onRoute) {
+        // Not before the drive starts: a parked (possibly stale) fix must not announce or pass anything.
+        // firstDPos is set above, so the first D sample itself already counts.
+        if (onRoute && firstDPos != null) {
             reachedAlong = maxOf(reachedAlong, along)
             for (seg in segments) {
                 val ahead = seg.distanceFromStartM - along

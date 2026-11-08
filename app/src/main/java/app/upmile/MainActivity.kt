@@ -15,43 +15,46 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.lifecycleScope
-import app.upmile.core.voice.QueuedVoice
+import app.upmile.core.route.SegmentFinder
+import app.upmile.drive.DriveService
 import app.upmile.voice.MusicPlayer
-import app.upmile.voice.PleosVoice
-import app.upmile.vehicle.DEFAULT_INVERT_SEAT
-import app.upmile.vehicle.PleosVehicleSignals
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
-    private var signals: PleosVehicleSignals? = null
-    private var engine: PleosVoice? = null
     private var music: MusicPlayer? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // Temporary: snapshot readout until a later task replaces this screen. Created here until Graph (Task 11).
-        val s = PleosVehicleSignals(applicationContext, DEFAULT_INVERT_SEAT)
-        signals = s
-        s.start()
-        lifecycleScope.launch { s.snapshots.collect { Log.d("UpmileSnap", it.toString()) } }
-        // Temporary debug triggers for the voice/music check (same lifetime as the readout).
-        val e = PleosVoice(applicationContext).also { engine = it }
-        // 40 s > PleosVoice's longest line (LineTracker.MAX_TOTAL_MS = 32 s): last resort only. Task 11 Graph must use the same value.
-        val voice = QueuedVoice(engine = e, timeoutMs = 40_000, scope = lifecycleScope)
+        // Temporary: debug readout and triggers until Task 13's screens replace this activity.
+        Graph.signals.start() // idempotent; Graph owns the lifetime, so the drive keeps its signals when this closes
+        lifecycleScope.launch { Graph.signals.snapshots.collect { Log.d("UpmileSnap", it.toString()) } }
         val m = MusicPlayer(applicationContext).also { music = it }
         setContent {
             MaterialTheme {
                 Surface(Modifier.fillMaxSize()) {
-                    val snapshot by s.snapshots.collectAsState()
+                    val snapshot by Graph.signals.snapshots.collectAsState()
+                    val location by Graph.location.location.collectAsState()
+                    val restricted by Graph.restricted.collectAsState()
+                    val running by DriveService.running.collectAsState()
+                    val record by Graph.store.records.collectAsState()
                     Column {
                         Text("Upmile"); Text(snapshot.toString())
+                        Text("위치 $location · 주행 규제 $restricted · 주행 서비스 $running")
+                        Text("unseenSessionId ${record.unseenSessionId} · cards ${record.cards.size}")
                         Row {
-                            Button({ voice.say("첫 번째 문장입니다."); voice.say("두 번째 문장입니다.") }) { Text("음성 테스트") }
+                            Button({ Graph.voice.say("첫 번째 문장입니다."); Graph.voice.say("두 번째 문장입니다.") }) { Text("음성 테스트") }
                             Button({
                                 m.play("music/calm_start.m4a")
                                 lifecycleScope.launch { delay(10_000); m.fadeOutAndStop() }
                             }) { Text("음악 테스트") }
+                            Button({
+                                val route = Graph.routes.route(COMMUTE)
+                                val garage = Graph.routes.destinations().first { it.id == COMMUTE }.hasGarage
+                                // as in runDemo: every commute segment counts as rehearsed
+                                DriveService.start(this@MainActivity, COMMUTE, SegmentFinder.find(route, garage).map { it.id })
+                            }) { Text("주행 시작") }
+                            Button({ DriveService.stop(this@MainActivity) }) { Text("주행 종료") }
                         }
                     }
                 }
@@ -60,9 +63,9 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
-        signals?.stop()
-        engine?.release()
         music?.release()
         super.onDestroy()
     }
+
+    private companion object { const val COMMUTE = "commute" }
 }
