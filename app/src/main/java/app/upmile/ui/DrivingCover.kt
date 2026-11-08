@@ -1,0 +1,60 @@
+package app.upmile.ui
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import app.upmile.ui.theme.Palette
+
+private val NaviIcon = strokeIcon("M3 11l18-8-8 18-2-8z", width = 2.6f)
+private val CoverWave = listOf(22, 44, 30, 56, 26, 40, 20).map { (it * 1.4f).dp }
+
+/** Shown instead of every screen while driving: voice only, nothing to tap. [nextSegment] is the next rehearsed segment, if known. */
+@Composable
+fun DrivingCover(destinationName: String, nextSegment: String? = null) {
+    Column(
+        Modifier.fillMaxSize().drawBehind {
+            drawRect(Brush.radialGradient(0f to Color(0xFF0F1A24), .7f to Color(0xFF0A0E13), center = Offset(size.width / 2, size.height * .4f), radius = size.maxDimension * .6f))
+        },
+        verticalArrangement = Arrangement.spacedBy(30.dp, Alignment.CenterVertically),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        VoiceWave(CoverWave, barWidth = 8.dp)
+        Text("주행 중에는 음성으로만 안내할게요", fontSize = 40.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
+        Text("화면은 잠시 쉬어요. 앞을 봐 주세요.", color = Palette.sub, fontSize = 23.sp)
+        Row(
+            Modifier.background(Palette.surface2, RoundedCornerShape(26.dp))
+                .border(1.dp, Palette.accent.copy(alpha = .35f), RoundedCornerShape(26.dp))
+                .padding(horizontal = 34.dp, vertical = 26.dp),
+            horizontalArrangement = Arrangement.spacedBy(24.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(Modifier.size(68.dp).background(Palette.accent, RoundedCornerShape(18.dp)), contentAlignment = Alignment.Center) {
+                Icon(NaviIcon, null, Modifier.size(36.dp), tint = Palette.onAccent)
+            }
+            Column {
+                Text("오늘 목적지 · $destinationName", fontSize = 29.sp, fontWeight = FontWeight.Bold)
+                if (nextSegment != null) Text(nextSegment, color = Palette.sub, fontSize = 20.sp)
+            }
+        }
+    }
+}
