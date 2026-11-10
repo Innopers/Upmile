@@ -52,7 +52,7 @@ private val CoverWave = listOf(22, 44, 30, 56, 26, 40, 20).map { (it * 1.4f).dp 
 
 /** Shown instead of every screen while driving: voice only, nothing to tap. [nextSegment] is the next rehearsed segment, if known. */
 @Composable
-fun DrivingCover(destinationName: String, nextSegment: String? = null) {
+fun DrivingCover(destinationName: String, nextSegment: String? = null, waitingForSignal: Boolean = false) {
     Column(
         Modifier.fillMaxSize().drawBehind {
             drawRect(Brush.radialGradient(0f to Color(0xFF0F1A24), .7f to Color(0xFF0A0E13), center = Offset(size.width / 2, size.height * .4f), radius = size.maxDimension * .6f))
@@ -61,8 +61,13 @@ fun DrivingCover(destinationName: String, nextSegment: String? = null) {
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         VoiceWave(CoverWave, barWidth = 8.dp)
-        Text("주행 중에는 음성으로만 안내할게요", fontSize = 40.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
-        Text("화면은 잠시 쉬어요. 앞을 봐 주세요.", color = Palette.sub, fontSize = 23.sp)
+        if (waitingForSignal) {
+            Text("차량 신호를 기다리고 있어요", fontSize = 40.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
+            Text("기어 상태를 확인하면 화면이 열려요.", color = Palette.sub, fontSize = 23.sp)
+        } else {
+            Text("주행 중에는 음성으로만 안내할게요", fontSize = 40.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
+            Text("화면은 잠시 쉬어요. 앞을 봐 주세요.", color = Palette.sub, fontSize = 23.sp)
+        }
         Row(
             Modifier.background(Palette.surface2, RoundedCornerShape(26.dp))
                 .border(1.dp, Palette.accent.copy(alpha = .35f), RoundedCornerShape(26.dp))

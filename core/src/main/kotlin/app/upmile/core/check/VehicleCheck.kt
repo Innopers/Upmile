@@ -10,6 +10,15 @@ data class CheckResult(val item: CheckItem, val state: CheckState, val message: 
 object VehicleCheck {
     private const val SEAT_BELT = "SeatBelt"
 
+    // Real warning lamps only (ids = CamelCase of the Vehicle SDK TelltaleType); indicators are ignored.
+    private val WARNING_NAMES = mapOf(
+        "Engine" to "엔진", "EngineOilPressure" to "엔진 오일 압력", "EngineTemperature" to "냉각수 온도",
+        "Abs" to "브레이크 잠김 방지", "Esc" to "차체 자세 제어", "Mdps" to "조향 보조", "Tpms" to "타이어 공기압",
+        "Airbag" to "에어백", "LowVoltBattery" to "보조 배터리", "MasterWarning" to "종합 경고",
+        "EvSystem" to "전기차 시스템", "HevSystem" to "하이브리드 시스템", "LowEvBattery" to "구동 배터리 부족",
+        "LowFuel" to "연료 부족", "DoorOpen" to "문 열림", "TrunkOpen" to "트렁크 열림",
+    )
+
     fun run(s: VehicleSnapshot, routeKm: Double): List<CheckResult> = listOf(
         doors(s),
         telltales(s),
@@ -25,9 +34,10 @@ object VehicleCheck {
     private fun telltales(s: VehicleSnapshot): CheckResult {
         val all = s.activeTelltales
             ?: return CheckResult(CheckItem.TELLTALES, CheckState.INFO, "경고등 정보를 읽을 수 없어요.")
-        val others = all.filter { it != SEAT_BELT } // seat belt is reported under BELT
-        return if (others.isEmpty()) CheckResult(CheckItem.TELLTALES, CheckState.OK, "켜진 경고등이 없어요.")
-        else CheckResult(CheckItem.TELLTALES, CheckState.WARN, "경고등이 켜져 있어요: ${others.joinToString()}. 확인해 주세요.")
+        // seat belt is reported under BELT; ids outside the whitelist are indicators
+        val names = all.filter { it != SEAT_BELT }.mapNotNull { WARNING_NAMES[it] }.distinct()
+        return if (names.isEmpty()) CheckResult(CheckItem.TELLTALES, CheckState.OK, "켜진 경고등이 없어요.")
+        else CheckResult(CheckItem.TELLTALES, CheckState.WARN, "경고등이 켜져 있어요: ${names.joinToString(", ")}. 확인해 주세요.")
     }
 
     private fun energy(s: VehicleSnapshot, routeKm: Double): CheckResult {

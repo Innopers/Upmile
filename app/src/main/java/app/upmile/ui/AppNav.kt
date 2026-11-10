@@ -43,6 +43,7 @@ import app.upmile.core.demo.DEMO_DESTINATION
 import app.upmile.core.routine.Mood
 import app.upmile.core.routine.planFor
 import app.upmile.core.vehicle.Gear
+import app.upmile.drive.DriveService
 import app.upmile.ui.theme.Palette
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
@@ -114,6 +115,14 @@ private fun Nav(demo: Boolean, gleoRoute: String?, onGleoRouteHandled: () -> Uni
         checkMemory.value = checkMemory.value.afterCover(cover)
         rehearsed = rehearsalAfterCover(rehearsed, cover)
     }
+    // Not lifecycle-aware on purpose: this keeps running while the activity is stopped behind the navigation app.
+    LaunchedEffect(Unit) {
+        var was = DriveService.running.value
+        DriveService.running.collect { now ->
+            if (was && !now) { rehearsed = emptySet(); checkMemory.value = checkMemory.value.afterCover(true) }
+            was = now
+        }
+    }
     LaunchedEffect(gear == Gear.P, unseen) { if (opensRecord(gear, unseen)) go(Screen.RECORD) }
     // A Gleo request (already checked for P by the activity) opens its screen once.
     LaunchedEffect(gleoRoute) {
@@ -136,7 +145,7 @@ private fun Nav(demo: Boolean, gleoRoute: String?, onGleoRouteHandled: () -> Uni
         // no 끝내기 to tap while the real car requires distraction optimization
         if (demo) DemoBanner(onExit = if (restricted) null else { { Graph.setDemoMode(false) } })
         // Replaces the screens rather than covering them, so music, cabin light and check speech stop while driving.
-        if (cover) { if (demo) DemoCover() else DrivingCover(destination.name) }
+        if (cover) { if (demo) DemoCover() else DrivingCover(destination.name, waitingForSignal = gear == Gear.UNKNOWN && !restricted) }
         else Column(Modifier.fillMaxSize()) {
             Header(
                 screen.step, reached, onStep = { s -> go(Screen.entries.first { it.step == s }) }, onRecord = { go(Screen.RECORD) },

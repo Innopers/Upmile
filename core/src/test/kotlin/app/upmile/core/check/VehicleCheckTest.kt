@@ -67,8 +67,29 @@ class VehicleCheckTest {
     }
 
     @Test fun otherTelltale_warnsTelltalesItem() {
-        val r = VehicleCheck.run(snap(activeTelltales = listOf("TirePressure")), 18.2)
+        val r = VehicleCheck.run(snap(activeTelltales = listOf("Tpms")), 18.2)
         assertEquals(CheckState.WARN, CheckItem.TELLTALES.of(r).state)
+    }
+
+    @Test fun indicatorOnly_isOk() {
+        val r = VehicleCheck.run(snap(activeTelltales = listOf("TurnSignalLeft", "HeadlampLow", "AutoHold", "XevReady", "ElectronicParkingBrake", "IPedal")), 18.2)
+        assertEquals(CheckState.OK, CheckItem.TELLTALES.of(r).state)
+    }
+
+    @Test fun warningLamp_namedInKorean_noLatinLetters() {
+        val r = CheckItem.TELLTALES.of(VehicleCheck.run(snap(activeTelltales = listOf("AutoHold", "EngineOilPressure", "Tpms")), 18.2))
+        assertEquals(CheckState.WARN, r.state)
+        assertEquals("경고등이 켜져 있어요: 엔진 오일 압력, 타이어 공기압. 확인해 주세요.", r.message)
+        assertFalse(r.message, r.message.any { it in 'A'..'Z' || it in 'a'..'z' })
+    }
+
+    @Test fun everyWhitelistedName_hasNoLatinLetters() {
+        val ids = listOf("Engine", "EngineOilPressure", "EngineTemperature", "Abs", "Esc", "Mdps", "Tpms", "Airbag", "LowVoltBattery",
+            "MasterWarning", "EvSystem", "HevSystem", "LowEvBattery", "LowFuel", "DoorOpen", "TrunkOpen")
+        ids.forEach { id ->
+            val m = CheckItem.TELLTALES.of(VehicleCheck.run(snap(activeTelltales = listOf(id)), 18.2)).message
+            assertFalse("$id: $m", m.any { it in 'A'..'Z' || it in 'a'..'z' || it in '0'..'9' })
+        }
     }
 
     @Test fun energy_warnsWhenRangeBelowTwiceRoute() {
@@ -86,7 +107,7 @@ class VehicleCheckTest {
     }
 
     @Test fun messages_avoidScoreAndEvaluationWords() {
-        val all = VehicleCheck.run(snap(doorsClosed = false, activeTelltales = listOf("TirePressure"), rangeKm = 30, beltBuckled = false), 18.2)
+        val all = VehicleCheck.run(snap(doorsClosed = false, activeTelltales = listOf("Tpms"), rangeKm = 30, beltBuckled = false), 18.2)
         all.forEach { r -> assertFalse(r.message, r.message.contains("점수") || r.message.contains("평가")) }
     }
 }

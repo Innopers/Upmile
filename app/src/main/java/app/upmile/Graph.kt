@@ -76,8 +76,8 @@ object Graph {
     private var switching: Job? = null // a running setDemoMode
     private val _demoDriving = MutableStateFlow(false)
     val demoDriving: StateFlow<Boolean> = _demoDriving.asStateFlow()
-    lateinit var signals: VehicleSignals; private set
-    lateinit var location: LocationSource; private set
+    @Volatile lateinit var signals: VehicleSignals; private set
+    @Volatile lateinit var location: LocationSource; private set
     lateinit var voice: Voice; private set
     /** The routine's 출발곡; one player for the app, so leaving the screen can still fade it out. */
     lateinit var music: MusicPlayer; private set
@@ -85,7 +85,7 @@ object Graph {
     lateinit var cabin: CabinController; private set
     private var cabinCar: PleosCabinController? = null
     lateinit var routes: RouteRepository; private set
-    lateinit var store: RecordStore; private set
+    @Volatile lateinit var store: RecordStore; private set
     /** Lazy: the boundary file is large; first read when a drive starts (off the main thread), not at app start. */
     val regions: RegionLocator by lazy { RegionLocator(read("regions/sigungu.geojson")) }
     /** True while the car requires distraction optimization (driving); the driving cover (Task 13) follows it. */
@@ -151,9 +151,9 @@ object Graph {
 
     /**
      * Main thread. Replays the recorded commute through the real pipeline at real pace, the lines through [voice], the
-     * screens following its frames. Ignored outside 체험 모드 or while a replay still runs (or is still winding down).
+     * screens following its frames. [rehearsed] are the previewed segments: only those get an "아까 연습한" line and a stamp. Ignored outside 체험 모드 or while a replay still runs (or is still winding down).
      */
-    fun startDemoDrive() {
+    fun startDemoDrive(rehearsed: Set<String>) {
         val car = demoCar ?: return
         val s = scope ?: return
         if (demoDrive?.isCompleted == false || switching?.isActive == true) return
@@ -164,7 +164,9 @@ object Graph {
             try {
                 st.save(Record.EMPTY) // fresh each run: the fixed demo session id would otherwise be skipped as processed
                 Log.i(TAG, "demo drive started")
-                runDemo(::read, st, pace = { delay(it) }, onFrame = car::follow, voice = voice)
+                // Also loads the on-device TTS model (~10 s) during the P lead-in, so the first approach line is on time.
+                voice.say("체험 주행을 시작해요.")
+                runDemo(::read, st, pace = { delay(it) }, onFrame = car::follow, voice = voice, rehearsedIds = rehearsed)
                 finished = true
                 Log.i(TAG, "demo drive finished")
             } catch (e: CancellationException) {

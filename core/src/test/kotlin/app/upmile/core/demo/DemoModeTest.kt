@@ -45,6 +45,20 @@ class DemoModeTest {
         assertEquals("도착했어요. 오늘 기록을 정리했어요.", voice.said.last())
     }
 
+    @Test fun nothingRehearsed_noRehearsedLineAndNoStamps() {
+        val voice = object : Voice {
+            val said = mutableListOf<String>()
+            override val ready: StateFlow<Boolean> = MutableStateFlow(true)
+            override fun say(text: String, priority: Int) { said += text }
+            override fun stop() {}
+        }
+        val record = runBlocking {
+            runDemo(::readAsset, RecordStore(tmp.newFile("record_demo.json")), voice = voice, rehearsedIds = emptySet())
+        }
+        assertEquals(0, voice.said.count { "아까 연습한" in it })
+        assertTrue(record.stamps.isEmpty())
+    }
+
     @Test fun coarseAppPacing_400msSteps_stillKeepsTheHardBrake() {
         val paced = mutableListOf<Long>()
         val record = runBlocking {

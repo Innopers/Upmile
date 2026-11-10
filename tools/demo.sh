@@ -13,7 +13,7 @@ usage() {
   setup [--fix-location]  포트 연결·하트비트·초기 상태(주행거리 300km, 착석, 벨트 경고 꺼짐, P단)
                           --fix-location: 멈춘 위치 서비스를 강제 종료해 되살림
   belt on|off             SeatBelt 경고등 켜기/끄기
-  drive [commute]         시나리오를 실시간(약 95초)으로 재생하고 끝에 P단으로 둠
+  drive [commute]         시나리오를 실시간(약 1분 30초)으로 재생하고 끝에 P단으로 둠
   reset                   P단·속도 0·와이퍼 끔·벨트 경고 끔·문 닫힘, 하트비트 중단
   stop                    setup이 띄운 하트비트만 중단
 
@@ -126,8 +126,9 @@ def put(path):
         print("콘솔 쓰기 실패 %s: %s" % (path, e), file=sys.stderr)
 
 def fix(f):
-    subprocess.run([adb, "emu", "geo", "fix", str(f["lon"]), str(f["lat"])],
-                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    r = subprocess.run([adb, "emu", "geo", "fix", str(f["lon"]), str(f["lat"])], capture_output=True, text=True)
+    if r.returncode != 0 or "OK" not in r.stdout:
+        print("위치 설정 실패: %s" % (r.stdout + r.stderr).strip(), file=sys.stderr)
 
 try:
     fix(frames[0])

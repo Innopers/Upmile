@@ -37,9 +37,12 @@ class MainActivity : ComponentActivity() {
     /** Gleo launches us with the function name as the action; answer within its 7 s window. */
     private fun handleGleo(intent: Intent) {
         val action = intent.action ?: return
+        if (GleoIntents.routeFor(action, emptyMap()) == null) return // a plain launcher start: no 2 s wait
         val params = GleoIntents.params(intent.getStringExtra("ACTION_PARAM")).toMutableMap()
         // The docs also allow parameters as individual extras.
         if ("destination" !in params) intent.getStringExtra("destination")?.let { params["destination"] = it }
+        // 체험 모드 always shows the commute, so the reply must describe it.
+        if (Graph.demo.value) params["destination"] = "commute"
         lifecycleScope.launch {
             // On a cold start the snapshot can still be UNKNOWN, which would read as "driving".
             val gear = withTimeoutOrNull(GEAR_WAIT_MS) { Graph.signals.snapshots.first { it.gear != Gear.UNKNOWN }.gear }
