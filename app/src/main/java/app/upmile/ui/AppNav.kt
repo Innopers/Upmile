@@ -43,6 +43,7 @@ import app.upmile.core.demo.DEMO_DESTINATION
 import app.upmile.core.routine.Mood
 import app.upmile.core.routine.planFor
 import app.upmile.core.vehicle.Gear
+import app.upmile.drive.DriveService
 import app.upmile.ui.theme.Palette
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
@@ -114,6 +115,14 @@ private fun Nav(demo: Boolean, gleoRoute: String?, onGleoRouteHandled: () -> Uni
         checkMemory.value = checkMemory.value.afterCover(cover)
         rehearsed = rehearsalAfterCover(rehearsed, cover)
     }
+    // Not lifecycle-aware on purpose: this keeps running while the activity is stopped behind the navigation app.
+    LaunchedEffect(Unit) {
+        var was = DriveService.running.value
+        DriveService.running.collect { now ->
+            if (was && !now) { rehearsed = emptySet(); checkMemory.value = checkMemory.value.afterCover(true) }
+            was = now
+        }
+    }
     LaunchedEffect(gear == Gear.P, unseen) { if (opensRecord(gear, unseen)) go(Screen.RECORD) }
     // A Gleo request (already checked for P by the activity) opens its screen once.
     LaunchedEffect(gleoRoute) {
@@ -151,12 +160,7 @@ private fun Nav(demo: Boolean, gleoRoute: String?, onGleoRouteHandled: () -> Uni
                         onBack = { go(Screen.CHECK) }, onNext = { go(Screen.READY) },
                     )
                     Screen.READY -> ReadyScreen(
-                        destination, rehearsed, routineVisited, checkMemory.value.states, startFailed,
-                        { ok ->
-                            startFailed = !ok
-                            // The drive has its ids; the app may stay stopped behind the navigation, so the cover never sees it.
-                            if (ok) { rehearsed = emptySet(); checkMemory.value = CheckMemory() }
-                        },
+                        destination, rehearsed, routineVisited, checkMemory.value.states, startFailed, { startFailed = !it },
                         onBack = { go(Screen.PREVIEW) }, demo = demo,
                     )
                     Screen.RECORD -> RecordScreen(onBack = { go(beforeRecord) }, onHome = { go(Screen.ROUTINE) })
