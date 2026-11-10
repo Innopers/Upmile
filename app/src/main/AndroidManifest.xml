@@ -34,10 +34,17 @@
 
         <activity
             android:name=".MainActivity"
+            android:launchMode="singleTask"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="START_ROUTINE" />
+                <action android:name="PREVIEW_TODAY_ROUTE" />
+                <action android:name="SHOW_MY_RECORD" />
+                <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
             <meta-data android:name="distractionOptimized" android:value="false" />
         </activity>
