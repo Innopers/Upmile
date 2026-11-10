@@ -21,7 +21,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -44,6 +43,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.LifecycleStartEffect
 import app.upmile.Graph
 import app.upmile.core.route.Destination
 import app.upmile.core.route.SegmentFinder
@@ -90,7 +90,6 @@ fun RoutineScreen(mood: Mood, onMood: (Mood) -> Unit, destination: Destination, 
     var elapsedMs by remember { mutableLongStateOf(0L) }
     var cabinLit by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
-        Graph.cabin.quietFan()
         val start = withFrameMillis { it }
         while (true) withFrameMillis { now ->
             elapsedMs = now - start
@@ -98,8 +97,12 @@ fun RoutineScreen(mood: Mood, onMood: (Mood) -> Unit, destination: Destination, 
             cabinLit = Graph.cabin.ambient(f.brightness, breathColor(elapsedMs).toArgb()) // the screen's colour; the cabin layer throttles
         }
     }
-    LaunchedEffect(plan.playMusic) { if (plan.playMusic) Graph.music.play(MUSIC) else Graph.music.fadeOutAndStop() }
-    DisposableEffect(Unit) { onDispose { Graph.cabin.restore(); Graph.music.fadeOutAndStop() } }
+    // Stopped (Home, another app) counts as leaving: no music, light or fan behind the user's back. Returning restarts them.
+    LifecycleStartEffect(plan.playMusic) {
+        if (plan.playMusic) Graph.music.play(MUSIC)
+        Graph.cabin.quietFan()
+        onStopOrDispose { Graph.music.fadeOutAndStop(); Graph.cabin.restore() }
+    }
     val hardCount = remember(destination) { SegmentFinder.find(Graph.routes.route(destination.id), destination.hasGarage).size }
     val breathed by remember(plan) { derivedStateOf { elapsedMs >= plan.breatheSeconds * 1000L } }
 
