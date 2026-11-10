@@ -126,8 +126,9 @@ def put(path):
         print("콘솔 쓰기 실패 %s: %s" % (path, e), file=sys.stderr)
 
 def fix(f):
-    subprocess.run([adb, "emu", "geo", "fix", str(f["lon"]), str(f["lat"])],
-                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    r = subprocess.run([adb, "emu", "geo", "fix", str(f["lon"]), str(f["lat"])], capture_output=True, text=True)
+    if r.returncode != 0 or "OK" not in r.stdout:
+        print("위치 설정 실패: %s" % (r.stdout + r.stderr).strip(), file=sys.stderr)
 
 try:
     fix(frames[0])
