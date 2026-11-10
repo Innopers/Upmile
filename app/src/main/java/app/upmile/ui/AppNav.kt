@@ -73,14 +73,14 @@ internal fun tabState(step: Int, current: Int?, reached: Int) = when {
 private const val TAG = "AppNav"
 
 @Composable
-fun AppNav() {
+fun AppNav(gleoRoute: String?, onGleoRouteHandled: () -> Unit) {
     val demo by Graph.demo.collectAsStateWithLifecycle()
     // Switching 체험 모드 starts over on ROUTINE with fresh state, reading Graph's swapped vehicle and record.
-    key(demo) { Nav(demo) }
+    key(demo) { Nav(demo, gleoRoute, onGleoRouteHandled) }
 }
 
 @Composable
-private fun Nav(demo: Boolean) {
+private fun Nav(demo: Boolean, gleoRoute: String?, onGleoRouteHandled: () -> Unit) {
     var screen by rememberSaveable { mutableStateOf(Screen.ROUTINE) }
     var reached by rememberSaveable { mutableIntStateOf(1) }
     var beforeRecord by rememberSaveable { mutableStateOf(Screen.ROUTINE) }
@@ -115,6 +115,21 @@ private fun Nav(demo: Boolean) {
         rehearsed = rehearsalAfterCover(rehearsed, cover)
     }
     LaunchedEffect(gear == Gear.P, unseen) { if (opensRecord(gear, unseen)) go(Screen.RECORD) }
+    // A Gleo request (already checked for P by the activity) opens its screen once.
+    LaunchedEffect(gleoRoute) {
+        val r = gleoRoute ?: return@LaunchedEffect
+        when {
+            r == "routine" -> go(Screen.ROUTINE)
+            r == "record" -> go(Screen.RECORD)
+            r == "preview" -> go(Screen.PREVIEW)
+            r.startsWith("preview/") -> {
+                val id = r.removePrefix("preview/")
+                if (!demo && Graph.routes.destinations().any { it.id == id }) destinationId = id
+                go(Screen.PREVIEW)
+            }
+        }
+        onGleoRouteHandled()
+    }
     LaunchedEffect(screen) { if (screen == Screen.ROUTINE) routineVisited = true }
 
     Column(Modifier.fillMaxSize().background(Palette.bg)) {
