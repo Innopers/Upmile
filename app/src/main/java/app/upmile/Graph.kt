@@ -164,6 +164,8 @@ object Graph {
             try {
                 st.save(Record.EMPTY) // fresh each run: the fixed demo session id would otherwise be skipped as processed
                 Log.i(TAG, "demo drive started")
+                // Also loads the on-device TTS model (~10 s) during the P lead-in, so the first approach line is on time.
+                voice.say("체험 주행을 시작해요.")
                 runDemo(::read, st, pace = { delay(it) }, onFrame = car::follow, voice = voice, rehearsedIds = rehearsed)
                 finished = true
                 Log.i(TAG, "demo drive finished")
