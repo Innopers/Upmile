@@ -151,7 +151,12 @@ private fun Nav(demo: Boolean, gleoRoute: String?, onGleoRouteHandled: () -> Uni
                         onBack = { go(Screen.CHECK) }, onNext = { go(Screen.READY) },
                     )
                     Screen.READY -> ReadyScreen(
-                        destination, rehearsed, routineVisited, checkMemory.value.states, startFailed, { startFailed = !it },
+                        destination, rehearsed, routineVisited, checkMemory.value.states, startFailed,
+                        { ok ->
+                            startFailed = !ok
+                            // The drive has its ids; the app may stay stopped behind the navigation, so the cover never sees it.
+                            if (ok) { rehearsed = emptySet(); checkMemory.value = CheckMemory() }
+                        },
                         onBack = { go(Screen.PREVIEW) }, demo = demo,
                     )
                     Screen.RECORD -> RecordScreen(onBack = { go(beforeRecord) }, onHome = { go(Screen.ROUTINE) })

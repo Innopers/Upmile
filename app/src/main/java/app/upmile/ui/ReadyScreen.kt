@@ -95,7 +95,7 @@ fun ReadyScreen(
 
     fun start() {
         if (starting || running) return // a second tap in the same frame, before the button disables
-        if (demo) { Graph.startDemoDrive(seen.toSet()); return } // no service, no navigation; Graph ignores a second start
+        if (demo) { Graph.startDemoDrive(seen.toSet()); onStarted(true); return } // no service, no navigation; Graph ignores a second start
         val ok = DriveService.start(context, destination.id, seen)
         onStarted(ok)
         if (!ok) return
