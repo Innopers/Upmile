@@ -129,7 +129,7 @@ fun ReadyScreen(
                 )
             }
             Text(
-                if (demo) "기록해 둔 ${destination.name} 가는 길을 1분 30초 동안 재생해요. 주행 중에는 화면을 숨기고 음성으로만 안내해요."
+                if (demo) "기록해 둔 ${destination.name} 가는 길을 약 1분 30초 동안 재생해요. 주행 중에는 화면을 숨기고 음성으로만 안내해요."
                 else "목적지는 차량 내비게이션으로 보내요. 기어를 D로 바꾸면 화면을 숨기고 음성으로만 안내해요.",
                 color = Palette.sub, fontSize = 19.sp,
             )

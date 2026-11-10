@@ -136,7 +136,7 @@ private fun Nav(demo: Boolean, gleoRoute: String?, onGleoRouteHandled: () -> Uni
         // no 끝내기 to tap while the real car requires distraction optimization
         if (demo) DemoBanner(onExit = if (restricted) null else { { Graph.setDemoMode(false) } })
         // Replaces the screens rather than covering them, so music, cabin light and check speech stop while driving.
-        if (cover) { if (demo) DemoCover() else DrivingCover(destination.name) }
+        if (cover) { if (demo) DemoCover() else DrivingCover(destination.name, waitingForSignal = gear == Gear.UNKNOWN && !restricted) }
         else Column(Modifier.fillMaxSize()) {
             Header(
                 screen.step, reached, onStep = { s -> go(Screen.entries.first { it.step == s }) }, onRecord = { go(Screen.RECORD) },

@@ -76,8 +76,8 @@ object Graph {
     private var switching: Job? = null // a running setDemoMode
     private val _demoDriving = MutableStateFlow(false)
     val demoDriving: StateFlow<Boolean> = _demoDriving.asStateFlow()
-    lateinit var signals: VehicleSignals; private set
-    lateinit var location: LocationSource; private set
+    @Volatile lateinit var signals: VehicleSignals; private set
+    @Volatile lateinit var location: LocationSource; private set
     lateinit var voice: Voice; private set
     /** The routine's 출발곡; one player for the app, so leaving the screen can still fade it out. */
     lateinit var music: MusicPlayer; private set
@@ -85,7 +85,7 @@ object Graph {
     lateinit var cabin: CabinController; private set
     private var cabinCar: PleosCabinController? = null
     lateinit var routes: RouteRepository; private set
-    lateinit var store: RecordStore; private set
+    @Volatile lateinit var store: RecordStore; private set
     /** Lazy: the boundary file is large; first read when a drive starts (off the main thread), not at app start. */
     val regions: RegionLocator by lazy { RegionLocator(read("regions/sigungu.geojson")) }
     /** True while the car requires distraction optimization (driving); the driving cover (Task 13) follows it. */
