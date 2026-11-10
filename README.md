@@ -51,6 +51,19 @@ Upmile은 초보 운전자를 위한 Pleos Connect(Android Automotive) 앱입니
 
 콘솔 페이지를 열어 둔 상태에서 무드조명 변화가 보입니다.
 
+### Gleo 연동 확인
+
+실제 Gleo 호출은 Pleos가 스키마(`assets/schema.json`)를 승인한 뒤에야 연결되므로, 그 전에는 adb로 같은 인텐트를 보내 확인합니다. P단일 때만 화면이 열리고, 응답은 `adb logcat -s Gleo`에 찍힙니다. 앱 데이터가 사용자 10에 있으니 `$U`는 실행 방법과 같이 씁니다.
+
+```bash
+U=$(adb shell am get-current-user | tr -d '\r')
+adb shell am start --user $U -n app.upmile/.MainActivity -a START_ROUTINE
+adb shell "am start --user $U -n app.upmile/.MainActivity -a PREVIEW_TODAY_ROUTE --es ACTION_PARAM '{\"destination\":\"cafe\"}'"
+adb shell am start --user $U -n app.upmile/.MainActivity -a SHOW_MY_RECORD
+```
+
+JSON이 든 두 번째 명령은 바깥을 큰따옴표로 감싸야 따옴표가 기기 셸까지 전달됩니다.
+
 ## 라이선스
 
 - 시·군·구 경계(`assets/regions/sigungu.geojson`): 통계청 SGIS 행정구역 경계(공공누리 1유형)를 가공한 vuski/admdongkor(https://github.com/vuski/admdongkor, CC BY 4.0) 데이터를 단순화·병합하여 사용했습니다. 생성: `tools/build_regions.sh`.
