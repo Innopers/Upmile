@@ -39,7 +39,7 @@ const val DEMO_DESTINATION = "commute"
  * [pace] runs after every step with [stepMs] (the app passes `{ delay((it / timeScale).toLong()) }`); [onFrame] lets
  * the app follow the replayed vehicle (e.g. show the gear-D cover).
  * Callers must pass a [store] backed by its own file (`record_demo.json`) so the demo never touches the real record.
- * The spec §9 story previews all commute segments before driving, so all of them count as rehearsed.
+ * [rehearsedIds] are the segments the user previewed; null counts all commute segments as rehearsed (headless runs).
  * [voice] takes the lines (the app passes its one queue, so they never fight a second one); null queues them on [speech].
  */
 suspend fun runDemo(
@@ -50,6 +50,7 @@ suspend fun runDemo(
     pace: suspend (Long) -> Unit = {},
     onFrame: (ScenarioFrame) -> Unit = {},
     voice: Voice? = null,
+    rehearsedIds: Set<String>? = null,
 ): Record {
     val routes = AssetRouteRepository(readAsset)
     val route = routes.route(DEMO_DESTINATION)
@@ -61,7 +62,7 @@ suspend fun runDemo(
         val signals = ScenarioVehicleSignals(frames, clock = { now })
         val loop = DriveLoop(
             DriveTracker(route, segments), voice ?: QueuedVoice(speech, scope = scope), store,
-            RegionLocator(readAsset("regions/sigungu.geojson")), "demo-commute", segments.map { it.id }.toSet(),
+            RegionLocator(readAsset("regions/sigungu.geojson")), "demo-commute", rehearsedIds ?: segments.map { it.id }.toSet(),
             System::currentTimeMillis,
         )
         signals.start()

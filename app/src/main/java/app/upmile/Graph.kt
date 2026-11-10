@@ -151,9 +151,9 @@ object Graph {
 
     /**
      * Main thread. Replays the recorded commute through the real pipeline at real pace, the lines through [voice], the
-     * screens following its frames. Ignored outside 체험 모드 or while a replay still runs (or is still winding down).
+     * screens following its frames. [rehearsed] are the previewed segments: only those get an "아까 연습한" line and a stamp. Ignored outside 체험 모드 or while a replay still runs (or is still winding down).
      */
-    fun startDemoDrive() {
+    fun startDemoDrive(rehearsed: Set<String>) {
         val car = demoCar ?: return
         val s = scope ?: return
         if (demoDrive?.isCompleted == false || switching?.isActive == true) return
@@ -164,7 +164,7 @@ object Graph {
             try {
                 st.save(Record.EMPTY) // fresh each run: the fixed demo session id would otherwise be skipped as processed
                 Log.i(TAG, "demo drive started")
-                runDemo(::read, st, pace = { delay(it) }, onFrame = car::follow, voice = voice)
+                runDemo(::read, st, pace = { delay(it) }, onFrame = car::follow, voice = voice, rehearsedIds = rehearsed)
                 finished = true
                 Log.i(TAG, "demo drive finished")
             } catch (e: CancellationException) {
