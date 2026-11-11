@@ -50,13 +50,12 @@ import app.upmile.core.model.HardSegment
 import app.upmile.core.model.Route
 import app.upmile.core.model.SegmentType
 import app.upmile.core.preview3d.SceneBuilder
-import app.upmile.core.preview3d.arcFraction
 import app.upmile.core.preview3d.flat
 import app.upmile.core.preview3d.remainingM
 import app.upmile.core.route.Destination
 import app.upmile.core.route.SegmentFinder
 import app.upmile.drive.DriveService
-import app.upmile.preview3d.CanvasPreview
+import app.upmile.preview3d.Preview3d
 import app.upmile.ui.theme.Palette
 import java.util.Locale
 import kotlin.math.roundToInt
@@ -258,7 +257,7 @@ private fun Rehearsal(
 
     val shape = RoundedCornerShape(26.dp)
     Box(modifier.clip(shape).border(1.dp, Palette.line, shape)) {
-        CanvasPreview(flat, spec.arcFraction(play.progress), Modifier.fillMaxSize())
+        Preview3d(spec, flat, play.progress, cornerColor = Palette.bg, corner = 26.dp, modifier = Modifier.fillMaxSize())
         Row(Modifier.fillMaxWidth().padding(20.dp), verticalAlignment = Alignment.Top) {
             Text(
                 buildAnnotatedString {
