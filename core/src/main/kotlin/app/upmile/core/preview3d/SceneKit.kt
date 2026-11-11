@@ -50,24 +50,31 @@ fun deg(d: Float) = d * PI.toFloat() / 180f
 /** Travel heading of [dir]: radians, 0 = -Z, positive turns right (toward +X). */
 fun heading(dir: Vec3): Float = atan2(dir.x, -dir.z)
 
-/** Point and unit direction [s] metres along [path]; before the start or past the end it extends the end segment. */
+/** Point and unit direction [s] metres along [path]; before the start or past the end it extends the nearest non-zero end segment. */
 fun pointAt(path: List<Vec3>, s: Float): Pose {
     require(path.size >= 2) { "a path needs two points" }
     var acc = 0f
+    var last: Triple<Vec3, Vec3, Float>? = null // start, vector, arc length at start of the last non-zero segment
+    var lastAcc = 0f
     for (i in 1 until path.size) {
         val a = path[i - 1]; val d = path[i] - a; val l = d.len()
         if (l == 0f) continue
-        if (s <= acc + l || i == path.lastIndex) return Pose(a + d * ((s - acc) / l), d.unit())
+        if (s <= acc + l) return Pose(a + d * ((s - acc) / l), d.unit())
+        last = Triple(a, d, l); lastAcc = acc
         acc += l
     }
-    error("path has no length")
+    val (a, d, l) = last ?: error("path has no length")
+    return Pose(a + d * ((s - lastAcc) / l), d.unit())
 }
 
-/** [path] shifted [d] metres to the driver's right (negative = left), horizontally. */
+/** [path] shifted [d] metres to the driver's right (negative = left), horizontally; repeated points borrow the nearest real segment's direction. */
 fun offset(path: List<Vec3>, d: Float): List<Vec3> = path.mapIndexed { i, p ->
-    val a = path[maxOf(i - 1, 0)]; val b = path[minOf(i + 1, path.lastIndex)]
-    val dx = b.x - a.x; val dz = b.z - a.z; val n = sqrt(dx * dx + dz * dz)
-    Vec3(p.x - dz / n * d, p.y, p.z + dx / n * d)
+    for (k in 1..path.size) {
+        val a = path[maxOf(i - k, 0)]; val b = path[minOf(i + k, path.lastIndex)]
+        val dx = b.x - a.x; val dz = b.z - a.z; val n = sqrt(dx * dx + dz * dz)
+        if (n > 0f) return@mapIndexed Vec3(p.x - dz / n * d, p.y, p.z + dx / n * d)
+    }
+    p
 }
 
 /** The part of [path] from [s0] to [s1] metres, both ends included. */
@@ -81,6 +88,7 @@ fun slice(path: List<Vec3>, s0: Float, s1: Float): List<Vec3> {
 
 /** Paint pieces of a dashed line along [path]: [paint] metres on, [gap] off, the first piece starting at [phase]. */
 fun dashes(path: List<Vec3>, paint: Float, gap: Float, phase: Float = 0f): List<List<Vec3>> {
+    require(paint > 0f && gap >= 0f) { "dashes need paint > 0 and gap >= 0" }
     val total = arcLengths(path).last()
     val out = mutableListOf<List<Vec3>>()
     var s = phase

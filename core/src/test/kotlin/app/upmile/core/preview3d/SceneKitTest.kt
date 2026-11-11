@@ -20,6 +20,25 @@ class SceneKitTest {
         assertEquals(-2f, offset(west, 2f)[0].z, 1e-5f)
     }
 
+    @Test fun pointAt_skipsZeroLengthSegmentsAtTheEnds() {
+        val a = v(0f, 0f); val b = v(0f, -10f)
+        assertEquals(-15f, pointAt(listOf(a, b, b), 15f).at.z, 1e-4f)
+        assertEquals(v(0f, -1f), pointAt(listOf(a, b, b), 15f).dir)
+        assertEquals(5f, pointAt(listOf(a, a, b), -5f).at.z, 1e-4f)
+        assertEquals(v(0f, -1f), pointAt(listOf(a, a, b), -5f).dir)
+    }
+
+    @Test fun offset_repeatedPointsUseTheNearestRealSegment() {
+        val a = v(0f, 0f); val b = v(0f, -10f); val ref = offset(listOf(a, b), 2f)
+        assertEquals(listOf(ref[0], ref[0], ref[1]), offset(listOf(a, a, b), 2f))
+        assertEquals(listOf(ref[0], ref[1], ref[1]), offset(listOf(a, b, b), 2f))
+        assertEquals(listOf(a, a), offset(listOf(a, a), 2f)) // no length at all: unshifted, no NaN
+    }
+
+    @Test(expected = IllegalArgumentException::class) fun dashes_rejectsNonPositivePaint() {
+        dashes(straight, 0f, 0f)
+    }
+
     @Test fun heading_zeroIsMinusZ_positiveTurnsRight() {
         assertEquals(0f, heading(v(0f, -1f)), 1e-6f)
         assertEquals(deg(90f), heading(v(1f, 0f)), 1e-6f)
