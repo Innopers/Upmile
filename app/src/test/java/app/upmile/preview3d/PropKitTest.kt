@@ -91,4 +91,13 @@ class PropKitTest {
         assertEquals(5f, face.p(tl).x, 1e-4f)
         assertEquals(-10f - 1.8f, face.p(tl).z, 1e-4f)                          // tl local x = -1.8 -> z' = -1.8
     }
+
+    @Test fun roadTextTiltsByTheDropItIsGivenAndIsFlatWithout() {
+        val m = PropKit.build(listOf(Prop(PropKind.ROAD_TEXT, v(0f, 0f), size = Vec3(2.4f, .48f, 4f), text = listOf("천천히")))).values.single()
+        (0 until m.vertexCount).forEach { assertEquals(if (m.p(it).z < 0f) .02f - .24f else .02f + .24f, m.p(it).y, 1e-4f) } // lower away from the driver
+        val n = m.n(0)
+        assertTrue("normal $n leans toward the downhill side", n.y > .99f && n.z < 0f)
+        val flat = PropKit.build(listOf(Prop(PropKind.ROAD_TEXT, v(0f, 0f), text = listOf("천천히")))).values.single()
+        (0 until flat.vertexCount).forEach { assertEquals(.02f, flat.p(it).y, 1e-6f) }
+    }
 }

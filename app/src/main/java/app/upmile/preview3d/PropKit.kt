@@ -42,7 +42,7 @@ internal object PropKit {
     private val MIRROR_SIZE = Vec3(.8f, 2.2f, 0f)             // diameter, centre height
     private val HEIGHT_BAR_SIZE = Vec3(7.2f, 2.3f, 0f)        // span, clearance
     private val BUMP_SIZE = Vec3(6.5f, .08f, .4f)
-    private val ROAD_TEXT_SIZE = Vec3(2.4f, 0f, 4f)           // width, length (z)
+    private val ROAD_TEXT_SIZE = Vec3(2.4f, 0f, 4f)           // width, floor drop over the length away from the driver, length (z)
 
     private const val SIGN_POLE_R = .04f
     private const val SIGN_POLE_Z = -.06f      // behind the back plate so the pole never pokes through the face
@@ -117,9 +117,9 @@ internal object PropKit {
                 face(Vec3(-.8f, s.y + .75f, .08f), Vec3(.8f, s.y + .75f, .08f), Vec3(.8f, s.y + .3f, .08f), Vec3(-.8f, s.y + .3f, .08f), face)
             }
             PropKind.SPEED_BUMP -> speedBump(s.x, s.y, s.z)
-            PropKind.ROAD_TEXT -> {
-                val y = .02f
-                face(Vec3(-s.x / 2, y, -s.z / 2), Vec3(s.x / 2, y, -s.z / 2), Vec3(s.x / 2, y, s.z / 2), Vec3(-s.x / 2, y, s.z / 2), face)
+            PropKind.ROAD_TEXT -> { // [at] is the floor under the centre; on a ramp the far edge (-z) lies s.y lower than the near one
+                val far = .02f - s.y / 2; val near = .02f + s.y / 2
+                face(Vec3(-s.x / 2, far, -s.z / 2), Vec3(s.x / 2, far, -s.z / 2), Vec3(s.x / 2, near, s.z / 2), Vec3(-s.x / 2, near, s.z / 2), face)
             }
         }
     }

@@ -1,5 +1,7 @@
 package app.upmile.preview3d
 
+import android.os.SystemClock
+import android.util.Log
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
@@ -155,6 +157,7 @@ internal fun FilamentPreview(built: SceneNodes, progress: Float, res: Preview3dR
     val t by rememberUpdatedState(progress)
     val firstFrame by rememberUpdatedState(onFirstFrame)
     val frames = remember { intArrayOf(0) }
+    val firstOnFrame = remember { longArrayOf(0L) }
     // queued after the first frame's commands: it signals once the GPU has drawn that frame (shader compiles take seconds)
     val fence = remember { arrayOfNulls<Fence>(1) }
     DisposableEffect(Unit) { onDispose { fence[0]?.let(engine::destroyFence) } }
@@ -169,12 +172,19 @@ internal fun FilamentPreview(built: SceneNodes, progress: Float, res: Preview3dR
             view.bloomOptions = view.bloomOptions.apply { enabled = true; strength = .08f }
         },
         onFrame = {
-            built.update(t, camera, view)
-            when (++frames[0]) {
-                2 -> fence[0] = engine.createFence()
-                in 3..Int.MAX_VALUE -> fence[0]?.takeIf { it.wait(Fence.Mode.DONT_FLUSH, 0) == Fence.FenceStatus.CONDITION_SATISFIED }?.let {
-                    engine.destroyFence(it); fence[0] = null; firstFrame()
+            try {
+                built.update(t, camera, view)
+                when (++frames[0]) {
+                    1 -> firstOnFrame[0] = SystemClock.elapsedRealtime()
+                    2 -> fence[0] = engine.createFence()
+                    else -> fence[0]?.takeIf { it.wait(Fence.Mode.DONT_FLUSH, 0) == Fence.FenceStatus.CONDITION_SATISFIED }?.let {
+                        engine.destroyFence(it); fence[0] = null
+                        Log.i(Preview3dResources.TAG, "first frame drawn ${SystemClock.elapsedRealtime() - firstOnFrame[0]} ms after the first onFrame")
+                        firstFrame()
+                    }
                 }
+            } catch (t: Throwable) { // the 3D view leaves on the next composition; until then the frames stay quiet
+                if (!Preview3dResources.failed) Preview3dResources.markFailed("frame: $t")
             }
         },
     )

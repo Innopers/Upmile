@@ -104,7 +104,7 @@ object RampScene {
             val p = pointAt(center, s); props += Prop(PropKind.CEILING_LIGHT, p.at.copy(y = p.at.y + 2.95f), heading(p.dir), Vec3(.25f, .06f, 1.2f))
         }
         pointAt(center, sC[iArc0] + 3f).let { props += Prop(PropKind.CONVEX_MIRROR, side(sC[iArc0] + 3f, -3f * sgn), heading(it.dir) + PI.toFloat(), Vec3(.8f, 2.2f, 0f)) }
-        pointAt(center, sC[1] + 16.5f).let { props += Prop(PropKind.ROAD_TEXT, side(sC[1] + 16.5f, LANE), heading(it.dir), Vec3(2.4f, 0f, 4f), listOf("천천히")) }
+        pointAt(center, sC[1] + 16.5f).let { props += Prop(PropKind.ROAD_TEXT, side(sC[1] + 16.5f, LANE), heading(it.dir), Vec3(2.4f, slope * 4f, 4f), listOf("천천히")) } // on the first straight: the floor drops slope x 4 m under it
         pointAt(center, sC[iSecond]).let { props += Prop(PropKind.SPEED_BUMP, it.at, heading(it.dir), Vec3(W, .08f, .4f)) }
 
         // the oncoming car climbs the left lane at 4 m/s and passes the camera 3 m after its turn ends; it starts in the hall, behind the path's first point

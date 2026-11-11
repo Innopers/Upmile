@@ -7,7 +7,9 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import kotlin.math.abs
+import kotlin.math.cos
 import kotlin.math.hypot
+import kotlin.math.sin
 
 class RampSceneTest {
     private val seg = HardSegment("commute:garage_ramp:end", SegmentType.GARAGE_RAMP, "주차장 경사로", "회사",
@@ -80,6 +82,20 @@ class RampSceneTest {
         s.patches.filter { it.mat == Mat.WHITE_PAINT }.forEach { a ->
             val ss = a.outline.map { nearestS(cam, it) }
             assertTrue("text ${sText - half}..${sText + half} overlaps arrow ${ss.min()}..${ss.max()}", sText + half <= ss.min() || sText - half >= ss.max())
+        }
+    }
+
+    /** PropKit's rule: ROAD_TEXT's far edge (local -z) at .02 - size.y / 2, its near edge at .02 + size.y / 2. */
+    @Test fun roadTextLiesOnTheSlopingFloor() = listOf(
+        s, RampScene.build(seg.copy(params = mapOf("slope" to 0.12, "turnDeg" to -90.0))), RampScene.build(seg.copy(params = mapOf("slope" to 0.08, "turnDeg" to 90.0))),
+    ).forEach { spec ->
+        val text = spec.props.first { it.kind == PropKind.ROAD_TEXT }
+        val size = text.size!!; val c = cos(-text.heading); val sn = sin(-text.heading)
+        for ((lx, lz) in listOf(-1f to -1f, 1f to -1f, 1f to 1f, -1f to 1f)) {
+            val q = Vec3(lx * size.x / 2, .02f + lz * size.y / 2, lz * size.z / 2)
+            val p = Vec3(q.x * c + q.z * sn + text.at.x, q.y + text.at.y, -q.x * sn + q.z * c + text.at.z)
+            val floor = pointAt(spec.camera.path, nearestS(spec.camera.path, p)).at.y - EYE
+            assertTrue("corner (${p.x}, ${p.z}) is ${p.y - floor} m above the floor", p.y - floor in 0f..0.05f)
         }
     }
 

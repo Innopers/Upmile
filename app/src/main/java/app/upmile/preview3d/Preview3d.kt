@@ -27,9 +27,13 @@ import androidx.compose.ui.graphics.PathFillType
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.Dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
 import app.upmile.core.preview3d.SceneSpec
 import app.upmile.core.preview3d.TemplateScene
 import app.upmile.core.preview3d.arcFraction
+import com.google.android.filament.Fence
 import kotlinx.coroutines.delay
 
 /**
@@ -45,10 +49,18 @@ internal fun Preview3d(spec: SceneSpec, flat: TemplateScene, progress: Float, co
     LaunchedEffect(Unit) {
         withFrameNanos {} // the Canvas reaches the screen before the engine, sky and textures block the main thread
         started = SystemClock.elapsedRealtime()
-        res = Preview3dResources.get(context)
+        val r = Preview3dResources.get(context) ?: return@LaunchedEffect
+        // SceneView blocks the main thread on a shared engine's backend when its surface is sized: let the GPU finish the sky first
+        val idle = r.engine.createFence()
+        try { while (idle.wait(Fence.Mode.FLUSH, 0) != Fence.FenceStatus.CONDITION_SATISFIED) withFrameNanos {} } finally { r.engine.destroyFence(idle) }
+        Log.i(Preview3dResources.TAG, "backend idle ${SystemClock.elapsedRealtime() - started} ms after 3D start")
+        res = r
     }
+    var ready by remember { mutableStateOf(false) }
+    /** No first frame in time: this screen keeps the Canvas, for every segment and replay (other screens may try again). */
+    var timedOut by remember { mutableStateOf(false) }
     val built = remember(spec, res) {
-        res?.let { r ->
+        res?.takeUnless { Preview3dResources.failed || timedOut }?.let { r ->
             try {
                 val t0 = SystemClock.elapsedRealtime()
                 SceneNodes(spec, r).also { Log.i(Preview3dResources.TAG, "scene ${SystemClock.elapsedRealtime() - t0} ms, ${it.nodes.size} nodes") }
@@ -58,18 +70,21 @@ internal fun Preview3d(spec: SceneSpec, flat: TemplateScene, progress: Float, co
         }
     }
     DisposableEffect(built) { onDispose { built?.destroy() } }
-    var ready by remember { mutableStateOf(false) }
-    LaunchedEffect(res) { // the first-frame clock starts with 3D
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    LaunchedEffect(res, lifecycle) { // the clock starts with 3D and runs only while the screen is resumed (from 0 again on each resume)
         if (res == null) return@LaunchedEffect
-        delay(FIRST_FRAME_TIMEOUT_MS)
-        if (!ready) Preview3dResources.markFailed("no first frame in $FIRST_FRAME_TIMEOUT_MS ms")
+        lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            if (ready) return@repeatOnLifecycle
+            delay(FIRST_FRAME_TIMEOUT_MS)
+            if (!ready) { timedOut = true; Log.w(Preview3dResources.TAG, "no first 3D frame in $FIRST_FRAME_TIMEOUT_MS ms: this screen keeps the Canvas") }
+        }
     }
-    val alive = built != null && !Preview3dResources.failed
+    val alive = built != null && !Preview3dResources.failed && !timedOut
     val canvasAlpha by animateFloatAsState(if (ready && alive) 0f else 1f, tween(300), label = "canvasFade")
     Box(modifier) {
         if (alive) FilamentPreview(built!!, progress, res!!, onFirstFrame = {
             ready = true
-            Log.i(Preview3dResources.TAG, "first 3D frame ${SystemClock.elapsedRealtime() - started} ms after the first Canvas frame")
+            Log.i(Preview3dResources.TAG, "first 3D frame ${SystemClock.elapsedRealtime() - started} ms after 3D start")
         }, Modifier.fillMaxSize())
         if (canvasAlpha > 0f) CanvasPreview(flat, spec.arcFraction(progress), Modifier.fillMaxSize().graphicsLayer { alpha = canvasAlpha })
         Spacer(Modifier.fillMaxSize().drawBehind {
