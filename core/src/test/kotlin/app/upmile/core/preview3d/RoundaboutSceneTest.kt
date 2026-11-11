@@ -6,9 +6,12 @@ import app.upmile.core.model.SegmentType
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.atan2
+import kotlin.math.cos
 import kotlin.math.hypot
+import kotlin.math.sin
 
 class RoundaboutSceneTest {
     private val seg = HardSegment("cafe:roundabout:1", SegmentType.ROUNDABOUT, "회전교차로", "회전교차로 진입",
@@ -59,6 +62,18 @@ class RoundaboutSceneTest {
         val e = waiting.single { abs(it.poseAt(0f).at.z + 80f + w / 2) < .01f }.poseAt(0f)
         assertEquals(-80f - 14f - .3f - 2.3f, n.at.z, .5f); assertEquals(1f, n.dir.z, .01f)   // facing south, toward the ring
         assertEquals(14f + .3f + 2.3f, e.at.x, .5f); assertEquals(-1f, e.dir.x, .01f)         // facing west
+    }
+
+    /** The ring's asphalt starts and ends at a = 0, where its end sections are square to the first and last chords: no gap may open there. */
+    @Test fun ringAsphaltHasNoSeamAtItsStart() {
+        val rc = 14f - 2.75f
+        val ribbon = s.surfaces.single { it.mat == Mat.ASPHALT && it.center.all { p -> abs(hypot(p.x, p.z + 80f) - rc) < .01f } }
+        val l = offset(ribbon.center, -ribbon.width / 2); val r = offset(ribbon.center, ribbon.width / 2)
+        for (deg in -10..10) for (d in listOf(-2.7f, -1.5f, 0f, 1.5f, 2.7f)) {
+            val a = deg / 10f * PI.toFloat() / 180f
+            val p = Vec3((rc + d) * cos(a), 0f, -80f - (rc + d) * sin(a))
+            assertTrue("asphalt at a = ${deg / 10f} deg, ${rc + d} m", (1 until l.size).any { i -> SceneChecks.inside(p, listOf(l[i - 1], r[i - 1], r[i], l[i])) })
+        }
     }
 
     @Test fun endsInTheNorthArmsRightLane() = assertEquals(w2, s.camera.path.last().x, .01f)

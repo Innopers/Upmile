@@ -31,9 +31,10 @@ object RoundaboutScene {
         val rc = r - 2.75f
         val rnd = Random(segment.id.hashCode())
         val c = v(0f, CZ)
-        fun ring(rad: Float) = (0..72).map { k -> val a = TAU * k / 72; v(rad * cos(a), CZ - rad * sin(a)) }
+        fun ring(rad: Float, last: Int = 72) = (0..last).map { k -> val a = TAU * k / 72; v(rad * cos(a), CZ - rad * sin(a)) }
 
-        val surfaces = mutableListOf(Ribbon(ring(rc), 5.5f, Mat.ASPHALT))
+        // one step past the full turn: a ribbon's end sections are square to its end chords, which left a wedge open at a = 0
+        val surfaces = mutableListOf(Ribbon(ring(rc, 73), 5.5f, Mat.ASPHALT))
         val patches = mutableListOf<Patch>(bigGround(100f, -420f))
         val props = mutableListOf<Prop>()
         fun paint(path: List<Vec3>, mat: Mat = Mat.WHITE_PAINT, w: Float = Kr.LINE) { surfaces += Ribbon(path, w, mat, .01f) }
