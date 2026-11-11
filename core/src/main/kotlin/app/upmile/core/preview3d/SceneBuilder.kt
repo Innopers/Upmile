@@ -9,7 +9,8 @@ object SceneBuilder {
         SegmentType.HIGHWAY_MERGE -> MergeScene.build(segment)
         SegmentType.MULTILANE_LEFT -> LeftTurnScene.build(segment)
         SegmentType.GARAGE_RAMP -> RampScene.build(segment)
-        SegmentType.ROUNDABOUT,
-        SegmentType.SHARP_CURVE, SegmentType.ACCIDENT_SPOT -> PlainScene.build(segment)
+        SegmentType.ROUNDABOUT -> RoundaboutScene.build(segment)
+        SegmentType.SHARP_CURVE -> CurveScene.build(segment)
+        SegmentType.ACCIDENT_SPOT -> PlainScene.build(segment)
     }
 }
