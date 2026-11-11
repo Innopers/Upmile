@@ -62,18 +62,20 @@ object LeftTurnScene {
 
         // paint
         val surfaces = mutableListOf(
-            Ribbon(listOf(v(mid, NEAR_Z), v(mid, zc)), xR - xL, Mat.ASPHALT),
+            Ribbon(listOf(v(mid, NEAR_Z), v(mid, JZ)), xR - xL, Mat.ASPHALT),
             Ribbon(listOf(v(-HALF_X, zc), v(HALF_X, zc)), 2 * h, Mat.ASPHALT),
-            Ribbon(listOf(v(mid, zc), v(mid, FAR_Z)), xR - xL, Mat.ASPHALT),
+            Ribbon(listOf(v(mid, zN), v(mid, FAR_Z)), xR - xL, Mat.ASPHALT),
         )
         fun paint(path: List<Vec3>, mat: Mat = Mat.WHITE_PAINT, w: Float = Kr.LINE) { surfaces += Ribbon(path, w, mat, .01f) }
         fun dashed(path: List<Vec3>) = dashes(path, Kr.CITY_DASH, Kr.CITY_GAP).forEach { paint(it) }
         fun alongZ(x: Float, z0: Float, z1: Float) = listOf(v(x, z0), v(x, z1))
         fun alongX(z: Float, x0: Float, x1: Float) = listOf(v(x0, z), v(x1, z))
-        val dividers = (1 until lanes).map { .3f + it * W } + (1 until OPP).map { -.3f - it * W }
-        for (x in dividers) {
-            dashed(alongZ(x, NEAR_Z, -70f)); paint(alongZ(x, -70f, STOP_Z))   // solid: no lane change near the line
-            dashed(alongZ(x, farStop, FAR_Z))
+        // solid only on an approach, for the 30 m before its stop line; exits and the other side's departure stay dashed
+        for (x in (1 until lanes).map { .3f + it * W }) {
+            dashed(alongZ(x, NEAR_Z, -70f)); paint(alongZ(x, -70f, STOP_Z)); dashed(alongZ(x, farStop, FAR_Z))
+        }
+        for (x in (1 until OPP).map { -.3f - it * W }) {
+            dashed(alongZ(x, NEAR_Z, STOP_Z)); paint(alongZ(x, farStop, farStop - 30f)); dashed(alongZ(x, farStop - 30f, FAR_Z))
         }
         for (x in listOf(-.15f, .15f)) { paint(alongZ(x, NEAR_Z, STOP_Z), Mat.YELLOW_PAINT); paint(alongZ(x, farStop, FAR_Z), Mat.YELLOW_PAINT) }
         paint(alongX(STOP_Z, .3f, xR), w = Kr.STOP_LINE); paint(alongX(farStop, xL, -.3f), w = Kr.STOP_LINE)
@@ -103,7 +105,7 @@ object LeftTurnScene {
         }
         for (zb in listOf(-60f, -85f)) for (k in 1..lanes) if (k <= turn) leftArrow(laneX(k), zb) else straightArrow(laneX(k), zb)
         val paving = { x0: Float, x1: Float, z0: Float, z1: Float -> Patch(listOf(v(x0, z0), v(x1, z0), v(x1, z1), v(x0, z1)), Mat.PAVING, .15f) }
-        patches += listOf(paving(xR, SIDEWALK, JZ, NEAR_Z), paving(-SIDEWALK, xL, JZ, NEAR_Z), paving(xR, SIDEWALK, FAR_Z, zN), paving(-SIDEWALK, xL, FAR_Z, zN))
+        patches += listOf(paving(xR + .1f, SIDEWALK, JZ + .1f, NEAR_Z), paving(-SIDEWALK, xL - .1f, JZ + .1f, NEAR_Z), paving(xR + .1f, SIDEWALK, FAR_Z, zN - .1f), paving(-SIDEWALK, xL - .1f, FAR_Z, zN - .1f)) // start past the kerb's outer edge
         val solids = listOf(
             Extrusion(listOf(v(xR, NEAR_Z), v(xR, JZ), v(SIDEWALK, JZ)), KERB, Mat.KERB),
             Extrusion(listOf(v(xL, NEAR_Z), v(xL, JZ), v(-SIDEWALK, JZ)), KERB, Mat.KERB),

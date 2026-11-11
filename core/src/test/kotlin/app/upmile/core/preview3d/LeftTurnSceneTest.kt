@@ -52,13 +52,29 @@ class LeftTurnSceneTest {
 
     @Test fun noCrossTrafficInTheJunctionAfterTheArrow() {
         val tArrow = s.signal[1].t
-        SceneChecks.samples().filter { it >= tArrow }.forEach { t ->
-            s.cars.map { it.poseAt(t) }.filter { abs(it.dir.x) > .9f }.forEach { p ->           // moving along X
-                val inBox = p.at.x in -14f..17f && p.at.z in -126.1f..-106f
-                val turning = p.at.x < 0f && p.dir.x < 0f                                     // our turners heading west
-                assertTrue("cross car in the junction at t=$t: ${p.at}", !inBox || turning)
-            }
-        }
+        fun inBox(p: Pose) = p.at.x in -14f..17f && p.at.z in -126.1f..-106f
+        val crossing = s.cars.filter { it.path.first().z != 40f }       // our turners (A, C) start their path at z=+40
+        fun crossersInBox(t: Float) = crossing.map { it.poseAt(t) }.filter { abs(it.dir.x) > .9f && inBox(it) }
+        assertTrue("some cross car crosses before the arrow", SceneChecks.samples().filter { it < tArrow }.any { crossersInBox(it).isNotEmpty() })
+        SceneChecks.samples().filter { it >= tArrow }.forEach { t -> assertTrue("cross car in the junction at t=$t: ${crossersInBox(t)}", crossersInBox(t).isEmpty()) }
+    }
+
+    @Test fun nearSideOpposingExitHasNoSolidDividers() {
+        val solid = s.surfaces.filter { r -> r.mat == Mat.WHITE_PAINT && r.width == Kr.LINE && r.center.map { it.x }.distinct().size == 1 &&
+            r.center.all { it.z in -100f..-70f } && arcLengths(r.center).last() > Kr.CITY_DASH + .1f }
+        assertTrue("approach side keeps its solid dividers", solid.any { it.center.first().x > 0f })
+        assertTrue("opposing exit is dashed: $solid", solid.none { it.center.first().x < 0f })
+    }
+
+    @Test fun clampedVariantsKeepTheInvariants() = listOf(
+        mapOf("approachLanes" to 4.0, "turnLanes" to 1.0, "fromLane" to 1.0, "crossLanes" to 4.0),
+        mapOf("approachLanes" to 6.0, "turnLanes" to 1.0, "fromLane" to 1.0, "crossLanes" to 3.0),
+        mapOf("approachLanes" to 4.0, "turnLanes" to 2.0, "fromLane" to 2.0, "crossLanes" to 4.0),
+        mapOf("approachLanes" to 6.0, "turnLanes" to 2.0, "fromLane" to 1.0, "crossLanes" to 4.0),
+        mapOf("approachLanes" to 9.0, "turnLanes" to 5.0, "fromLane" to 4.0, "crossLanes" to 9.0),   // out of range: clamped to 6 / 2 / 2 / 4
+    ).forEach { p ->
+        val turn = minOf(p["turnLanes"]!!.toInt(), 2); val from = minOf(p["fromLane"]!!.toInt(), turn)
+        SceneChecks.all(LeftTurnScene.build(seg.copy(params = p)), listOf("좌회전 차로 ${turn}개", "정지선 신호 대기", "유도선 따라 회전", "${from}차로로 진입", "완료"))
     }
 
     @Test fun signalMastAndBlueSign() {
