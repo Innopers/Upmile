@@ -5,6 +5,6 @@
 - 질감 textures/asphalt.jpg, concrete.jpg, grass.jpg, paving.jpg, epoxy.jpg
   ambientCG Asphalt023S, Concrete034, Grass004, PavingStones126A (ambientCG.com). 크기·밝기·색을 바꿔 가공했다.
 - 하늘 sky.hdr
-  Poly Haven "Kloofendal 48d Partly Cloudy (Pure Sky)" — Greg Zaal, Jarod Guest (polyhaven.com).
+  Poly Haven "Kloofendal 48d Partly Cloudy (Pure Sky)" (polyhaven.com).
 
 가공 스크립트: tools/preview3d_assets.py

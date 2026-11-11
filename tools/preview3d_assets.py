@@ -16,7 +16,7 @@ from PIL import Image
 MODELS = ["sedan", "suv", "van", "hatchback-sports", "taxi", "truck", "delivery"]
 # colormap.png is 8 columns x 4 rows of colour cells; (col, row), row 0 = top.
 CELL_W, CELL_H = 64, 128
-BODY = [(3, 1), (4, 1), (6, 1), (7, 1)]  # paint; the app tints it per car with baseColorFactor
+BODY = [(3, 1), (4, 1), (6, 1), (7, 1)]  # paint; the app tints a copy of colormap.png per paint (Preview3dResources.carPaint)
 GLASS, TRIM = (5, 2), (3, 2)
 # app name: (ambientCG id, size px, brightness gain, tint or None)
 TEXTURES = {
