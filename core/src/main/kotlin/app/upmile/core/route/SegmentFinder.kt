@@ -40,11 +40,14 @@ object SegmentFinder {
         SHARP_CURVE -> "급커브"
     }
 
+    /** Demo-place values (양재IC 경부 5 lanes per OSM; 판교역로 5 lanes forward per OSM; 분당내곡로 6 lanes). In production map data fills these. */
     private fun params(t: SegmentType): Map<String, Double> = when (t) {
-        HIGHWAY_MERGE -> mapOf("lanes" to 2.0, "accelLaneM" to 180.0)
-        MULTILANE_LEFT -> mapOf("turnLanes" to 2.0, "fromLane" to 2.0)
+        HIGHWAY_MERGE -> mapOf("lanes" to 5.0, "accelLaneM" to 180.0)
+        MULTILANE_LEFT -> mapOf("turnLanes" to 2.0, "fromLane" to 2.0, "approachLanes" to 5.0, "crossLanes" to 3.0)
         GARAGE_RAMP -> mapOf("slope" to 0.12, "turnDeg" to 90.0)
-        else -> emptyMap()
+        ROUNDABOUT -> mapOf("radiusM" to 14.0, "exitArm" to 2.0)
+        SHARP_CURVE -> mapOf("radiusM" to 45.0, "turnDeg" to -90.0)
+        ACCIDENT_SPOT -> emptyMap()
     }
 
     private fun build(route: Route, g: GuidePoint, t: SegmentType) = HardSegment(

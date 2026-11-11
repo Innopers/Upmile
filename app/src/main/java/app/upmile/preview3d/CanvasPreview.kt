@@ -13,7 +13,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.drawscope.translate
-import app.upmile.core.preview3d.RoadTemplates.WALL
+import app.upmile.core.preview3d.WALL
 import app.upmile.core.preview3d.Strip
 import app.upmile.core.preview3d.TemplateScene
 import app.upmile.core.preview3d.Vec3
