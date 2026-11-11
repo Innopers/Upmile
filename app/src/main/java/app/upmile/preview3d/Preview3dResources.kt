@@ -3,6 +3,9 @@ package app.upmile.preview3d
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Canvas
+import android.graphics.ColorMatrix
+import android.graphics.ColorMatrixColorFilter
 import android.graphics.Matrix
 import android.os.SystemClock
 import android.util.Log
@@ -11,6 +14,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
 import app.upmile.core.preview3d.Mat
+import app.upmile.core.preview3d.Paint
 import app.upmile.core.preview3d.PropKind
 import com.google.android.filament.Engine
 import com.google.android.filament.MaterialInstance
@@ -29,6 +33,7 @@ import io.github.sceneview.material.setRoughnessFactor
 import io.github.sceneview.math.colorOf
 import io.github.sceneview.texture.ImageTexture
 import java.nio.ByteBuffer
+import kotlin.math.pow
 
 /** Filament objects every preview shares: built once on the main thread, kept for the process. */
 internal class Preview3dResources private constructor(private val context: Context) {
@@ -99,6 +104,23 @@ internal class Preview3dResources private constructor(private val context: Conte
             setBaseColorFactor(colorOf(1f, 1f, 1f, 1f)); setMetallicFactor(0f); setRoughnessFactor(.6f); setMaskThreshold(.5f)
         } ?: materialLoader.createTextureInstance(t, isOpaque = false, roughness = .5f)
     val hoodPaint: MaterialInstance = color(.05f, .06f, .07f, metallic = .6f, roughness = .25f)
+
+    private val carColormap by lazy { context.assets.open("preview3d/models/Textures/colormap.png").use(BitmapFactory::decodeStream) }
+    private val carPaints = HashMap<Paint, MaterialInstance>()
+    /**
+     * A car body in [p]: the Kenney colour map (body cells near-white, glass and trim dark) times the paint, in the
+     * scene's own textured material. The cars' glTF ubershader would add 2.5–3.4 s of shader compiles to the first
+     * 3D frame on the emulator. The map is 8-bit sRGB, so each linear multiplier is applied as k^(1/2.2).
+     */
+    fun carPaint(p: Paint): MaterialInstance = carPaints.getOrPut(p) {
+        val src = carColormap
+        val tinted = Bitmap.createBitmap(src.width, src.height, Bitmap.Config.ARGB_8888)
+        val gamma = { k: Float -> k.pow(1 / 2.2f) }
+        Canvas(tinted).drawBitmap(src, 0f, 0f, android.graphics.Paint().apply {
+            colorFilter = ColorMatrixColorFilter(ColorMatrix().apply { setScale(gamma(p.r), gamma(p.g), gamma(p.b), 1f) })
+        })
+        textured(texture(tinted), roughness = .5f)
+    }
 
     companion object {
         const val TAG = "Preview3d"
