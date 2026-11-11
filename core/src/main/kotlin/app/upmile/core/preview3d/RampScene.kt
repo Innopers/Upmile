@@ -26,7 +26,7 @@ object RampScene {
         val slope = (segment.params["slope"] ?: .12).toFloat().coerceIn(.06f, .13f) // curve slope is 1.07x this on the inner lane; keep it under Kr.RAMP_MAX_CURVE
         val sgn = if ((segment.params["turnDeg"] ?: 90.0) < 0.0) -1f else 1f
         val rnd = Random(segment.id.hashCode())
-        fun V(x: Float, z: Float, y: Float = 0f) = v(x * sgn, z, y)
+        fun mx(x: Float, z: Float, y: Float = 0f) = v(x * sgn, z, y)
 
         // centreline (y = floor), built as a right turn then mirrored
         val y1 = -slope * FIRST
@@ -62,9 +62,9 @@ object RampScene {
 
         val patches = mutableListOf<Patch>()
         fun rect(x0: Float, x1: Float, z0: Float, z1: Float, mat: Mat, y: Float = 0f, lift: Float = 0f, faceDown: Boolean = false) =
-            patches.add(Patch(listOf(V(x0, z0, y), V(x1, z0, y), V(x1, z1, y), V(x0, z1, y)), mat, lift, faceDown))
-        for (s0 in listOf(APRON + 8f, APRON + 20f)) {   // straight arrows in the right lane, tail at s0, 5 m long
-            fun pt(along: Float, lat: Float) = side(s0 + along, LANE + lat)
+            patches.add(Patch(listOf(mx(x0, z0, y), mx(x1, z0, y), mx(x1, z1, y), mx(x0, z1, y)), mat, lift, faceDown))
+        for (tail in listOf(APRON + 8f, APRON + 20f)) {   // straight arrows in the right lane, tail at [tail], 5 m long
+            fun pt(along: Float, lat: Float) = side(tail + along, LANE + lat)
             patches += Patch(listOf(pt(0f, -.15f), pt(0f, .15f), pt(3.4f, .15f), pt(3.4f, -.15f)), Mat.WHITE_PAINT, .01f)
             patches += Patch(listOf(pt(3.4f, -.5f), pt(3.4f, .5f), pt(5f, 0f)), Mat.WHITE_PAINT, .01f)
         }
@@ -75,10 +75,15 @@ object RampScene {
             patches += Patch(listOf(v(x0, z0), v(x1, z0), v(x1, z1), v(x0, z1)), Mat.GRASS, lift = -.03f)
         for ((x0, x1) in listOf(-40f to -3.25f, 3.25f to 40f)) patches += Patch(listOf(v(x0, 0f), v(x1, 0f), v(x1, 8f), v(x0, 8f)), Mat.PAVING)
 
+        // hall walls: 3 m high, 0.3 m thick, outside the hall rectangle, open where the passage (z -37.75..-31.25) enters
+        val e = .15f
+        val hallWall = listOf(mx(HALL_EDGE_X - e, -31.25f, hallY), mx(HALL_EDGE_X - e, -22f + e, hallY), mx(70f + e, -22f + e, hallY),
+            mx(70f + e, -48f - e, hallY), mx(HALL_EDGE_X - e, -48f - e, hallY), mx(HALL_EDGE_X - e, -37.75f, hallY))
+
         // walls and ceiling from the entrance to where the centreline reaches the hall
         val tunnel = center.subList(1, iHall + 1)
-        val s0 = sC[1]
-        val hazard = slice(tunnel, sC[iArc0] - 3f - s0, sC[iArc1] + 3f - s0)
+        val entranceS = sC[1]
+        val hazard = slice(tunnel, sC[iArc0] - 3f - entranceS, sC[iArc1] + 3f - entranceS)
         val solids = listOf(
             Extrusion(tunnel, listOf(-3.55f to 0f, -3.25f to 0f, -3.25f to 3f, -3.55f to 3f), Mat.WALL),
             Extrusion(tunnel, listOf(3.25f to 0f, 3.55f to 0f, 3.55f to 3f, 3.25f to 3f), Mat.WALL),
@@ -87,18 +92,19 @@ object RampScene {
             Extrusion(hazard, listOf(3.22f to 0f, 3.25f to 0f, 3.25f to 1f, 3.22f to 1f), Mat.HAZARD),
         )
 
+        val solidsAll = solids + Extrusion(hallWall, listOf(-e to 0f, e to 0f, e to CEIL, -e to CEIL), Mat.WALL)
         val props = mutableListOf<Prop>()
-        props += Prop(PropKind.BUILDING_GLASS, V(-21.8f, -25f), size = Vec3(36.4f, 42f, 50f))
-        props += Prop(PropKind.BUILDING_GLASS, V(21.8f, -25f), size = Vec3(36.4f, 38f, 50f))
+        props += Prop(PropKind.BUILDING_GLASS, mx(-21.8f, -25f), size = Vec3(36.4f, 42f, 50f))
+        props += Prop(PropKind.BUILDING_GLASS, mx(21.8f, -25f), size = Vec3(36.4f, 38f, 50f))
         props += Prop(PropKind.BUILDING_GLASS, v(0f, -25f, 3.4f), size = Vec3(7.2f, 38f, 50f))
-        props += Prop(PropKind.SIGN_BLUE, v(0f, .3f), size = Vec3(3.2f, 1.0f, 3.5f), text = listOf("P  지하주차장", "입구"))
+        props += Prop(PropKind.SIGN_BLUE, v(5.25f, 4f), size = Vec3(3.2f, 1.0f, 2.2f), text = listOf("P  지하주차장", "입구"))
         props += Prop(PropKind.HEIGHT_BAR, v(0f, 1.5f), size = Vec3(7.2f, 2.3f, 0f), text = listOf("높이 2.3m"))
-        for (z in listOf(-39.5f, -29.5f)) for (x in listOf(26f, 34f, 42f)) props += Prop(PropKind.PILLAR, V(x, z, hallY), size = Vec3(.7f, 3f, .7f), text = listOf("B1"))
+        for (z in listOf(-39.5f, -29.5f)) for (x in listOf(26f, 34f, 42f)) props += Prop(PropKind.PILLAR, mx(x, z, hallY), size = Vec3(.7f, 3f, .7f), text = listOf("B1"))
         generateSequence(sC[1] + 2f) { it + 5f }.takeWhile { it <= sC.last() }.forEach { s ->
             val p = pointAt(center, s); props += Prop(PropKind.CEILING_LIGHT, p.at.copy(y = p.at.y + 2.95f), heading(p.dir), Vec3(.25f, .06f, 1.2f))
         }
         pointAt(center, sC[iArc0] + 3f).let { props += Prop(PropKind.CONVEX_MIRROR, side(sC[iArc0] + 3f, -3f * sgn), heading(it.dir) + PI.toFloat(), Vec3(.8f, 2.2f, 0f)) }
-        pointAt(center, sC[1] + 12f).let { props += Prop(PropKind.ROAD_TEXT, side(sC[1] + 12f, LANE), heading(it.dir), Vec3(2.4f, 0f, 4f), listOf("천천히")) }
+        pointAt(center, sC[1] + 16.5f).let { props += Prop(PropKind.ROAD_TEXT, side(sC[1] + 16.5f, LANE), heading(it.dir), Vec3(2.4f, 0f, 4f), listOf("천천히")) }
         pointAt(center, sC[iSecond]).let { props += Prop(PropKind.SPEED_BUMP, it.at, heading(it.dir), Vec3(W, .08f, .4f)) }
 
         // the oncoming car climbs the left lane at 4 m/s and passes the camera 3 m after its turn ends; it starts in the hall, behind the path's first point
@@ -108,7 +114,7 @@ object RampScene {
         val car = rnd.cruise(carPath, s0Car, UP_MPS, total)
 
         return SceneSpec(
-            surfaces = surfaces, patches = patches, solids = solids, props = props, cars = listOf(car),
+            surfaces = surfaces, patches = patches, solids = solidsAll, props = props, cars = listOf(car),
             camera = Timeline(cam, pace.keys()),
             cues = listOf(
                 tAt(2f) to "입구 · 전조등",

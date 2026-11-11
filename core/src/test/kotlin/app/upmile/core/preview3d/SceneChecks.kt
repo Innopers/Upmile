@@ -12,7 +12,7 @@ object SceneChecks {
     private val DRIVABLE = setOf(Mat.ASPHALT, Mat.EPOXY, Mat.CONCRETE)
 
     fun all(spec: SceneSpec, expectedCues: List<String>) {
-        cues(spec, expectedCues); timing(spec); onRoad(spec); gaps(spec); propsClear(spec)
+        cues(spec, expectedCues); timing(spec); onRoad(spec); gaps(spec); propsClear(spec); nothingStandsInTheWay(spec)
     }
 
     fun cues(spec: SceneSpec, expected: List<String>) {
@@ -72,6 +72,27 @@ object SceneChecks {
             boxes.forEach { b -> assertTrue("tree ${p.at} inside ${b.kind} at ${b.at}", !inside(p.at, footprint(b, 1f))) }
         }
         for (b in boxes) (footprint(b, 0f) + b.at).forEach { c -> assertTrue("${b.kind} at ${b.at} covers road at $c", !onSurface(spec, c, 0f, b.at.y)) }
+    }
+
+    private val POSTED = setOf(
+        PropKind.STREET_LAMP, PropKind.SIGNAL_MAST, PropKind.SIGN_GREEN, PropKind.SIGN_BLUE, PropKind.WARNING_CURVE_LEFT, PropKind.WARNING_ACCIDENT,
+        PropKind.SPEED_LIMIT, PropKind.ROUNDABOUT_SIGN, PropKind.YIELD_SIGN, PropKind.CHEVRON_LEFT, PropKind.CONVEX_MIRROR, PropKind.PILLAR, PropKind.POST, PropKind.TREE,
+    )
+
+    /** Base points of a posted prop: a sign has two posts at +-(size.x/2 - .35) along its right; everything else stands at `at`. */
+    private fun basePoints(p: Prop): List<Vec3> =
+        if (p.kind == PropKind.SIGN_GREEN || p.kind == PropKind.SIGN_BLUE) {
+            val k = p.size!!.x / 2 - .35f
+            listOf(k, -k).map { Vec3(p.at.x + cos(p.heading) * it, p.at.y, p.at.z + sin(p.heading) * it) }
+        } else listOf(p.at)
+
+    /** No post, pole, pillar or tree base within CLEARANCE of the camera or a car path on its own level. */
+    fun nothingStandsInTheWay(spec: SceneSpec) {
+        val paths = listOf("camera" to spec.camera.path.map { it.copy(y = it.y - EYE) }) + spec.cars.mapIndexed { i, c -> "car $i" to c.path }
+        for (pr in spec.props.filter { it.kind in POSTED }) for (b in basePoints(pr)) for ((who, path) in paths) path.zipWithNext().forEach { (x, y) ->
+            val d = segDist(b, x, y)
+            assertTrue("${pr.kind} post at $b is $d m from the $who path", d >= CLEARANCE || abs(segY(b, x, y) - pr.at.y) > LEVEL_TOL)
+        }
     }
 
     private val BUILDINGS = setOf(PropKind.BUILDING_GLASS, PropKind.BUILDING_APT, PropKind.BUILDING_SHOP)

@@ -65,4 +65,48 @@ class RampSceneTest {
             listOf(v(0f, -10f), v(6.5f, -34.5f), v(30f, -34.5f)).forEach { p -> assertTrue("grass over $p", !SceneChecks.inside(p, g.outline)) }
         }
     }
+
+    private fun lateralOfCamera(spec: SceneSpec, p: Vec3): Float {
+        val pose = pointAt(spec.camera.path, nearestS(spec.camera.path, p))
+        val n = hypot(pose.dir.x, pose.dir.z)
+        return ((p.x - pose.at.x) * -pose.dir.z + (p.z - pose.at.z) * pose.dir.x) / n
+    }
+
+    @Test fun roadTextSitsBetweenTheTwoArrows() {
+        val cam = s.camera.path
+        val text = s.props.first { it.kind == PropKind.ROAD_TEXT }
+        val sText = nearestS(cam, text.at)
+        val half = text.size!!.z / 2
+        s.patches.filter { it.mat == Mat.WHITE_PAINT }.forEach { a ->
+            val ss = a.outline.map { nearestS(cam, it) }
+            assertTrue("text ${sText - half}..${sText + half} overlaps arrow ${ss.min()}..${ss.max()}", sText + half <= ss.min() || sText - half >= ss.max())
+        }
+    }
+
+    @Test fun entranceSignStandsOnTheSidewalkClearOfTheLanes() {
+        val sign = s.props.first { it.kind == PropKind.SIGN_BLUE }
+        assertEquals(5.25f, sign.at.x, .01f); assertEquals(4f, sign.at.z, .01f)
+        assertTrue(sign.at.x - (sign.size!!.x / 2 - .35f) >= 3.25f + .5f)
+    }
+
+    @Test fun hallHasPerimeterWallsWithAnOpeningForThePassage() {
+        val hall = s.solids.first { it.mat == Mat.WALL && it.path.first().z < -20f }
+        assertTrue(hall.path.all { it.x in 21f..71f && it.z in -49f..-21f })
+        assertTrue("opening", hall.path.first().z > -32f && hall.path.last().z < -37f)
+    }
+
+    @Test fun leftVariantHasTheMirrorOnTheOuterRightWallAndWallsEndAtMinus21() {
+        val left = RampScene.build(seg.copy(params = mapOf("slope" to 0.12, "turnDeg" to -90.0)))
+        assertTrue("left mirror lateral", lateralOfCamera(left, left.props.first { it.kind == PropKind.CONVEX_MIRROR }.at) > 0f)
+        assertTrue("right mirror lateral", lateralOfCamera(s, s.props.first { it.kind == PropKind.CONVEX_MIRROR }.at) < 0f)
+        val tunnel = left.solids.filter { it.mat == Mat.WALL && it.path.first().z == 0f }
+        assertEquals(2, tunnel.size)
+        tunnel.forEach { assertEquals(-21.5f, it.path.last().x, .01f) }
+    }
+
+    @Test fun oncomingCarPassesBesideTheCameraJustAfterTheTurn() {
+        val (t, d) = (0..1000).map { it / 1000f }.map { t -> t to SceneChecks.dist(s.cars[0].poseAt(t).at, s.cameraAt(t).first) }.minBy { it.second }
+        assertTrue("closest ${d} m", d <= 6f)
+        assertEquals(3.25f, Math.abs(lateralOfCamera(s, s.cars[0].poseAt(t).at)), .3f)
+    }
 }

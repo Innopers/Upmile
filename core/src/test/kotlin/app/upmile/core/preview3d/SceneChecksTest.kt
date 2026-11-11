@@ -33,4 +33,12 @@ class SceneChecksTest {
 
     @Test fun buildingOnTheSameLevelRoadIsRejected() = rejects { SceneChecks.propsClear(flatRoad(0f).copy(props = listOf(tower))) }
     @Test fun buildingOverARoad4mBelowIsAccepted() = SceneChecks.propsClear(flatRoad(-4f).copy(props = listOf(tower)))
+
+    @Test fun signPostInTheLaneIsRejected() = rejects {
+        SceneChecks.nothingStandsInTheWay(base.copy(props = listOf(Prop(PropKind.SIGN_BLUE, v(eyeX, -40f), size = Vec3(.7f, 1f, 2.2f)))))
+    }
+    @Test fun signBesideTheRoadPasses() =
+        SceneChecks.nothingStandsInTheWay(base.copy(props = listOf(Prop(PropKind.SIGN_BLUE, v(eyeX + 6f, -40f), size = Vec3(3.2f, 1f, 2.2f)))))
+    @Test fun lampOnAnotherLevelPasses() =
+        SceneChecks.nothingStandsInTheWay(base.copy(props = listOf(Prop(PropKind.STREET_LAMP, v(eyeX, -40f, 6f)))))
 }
