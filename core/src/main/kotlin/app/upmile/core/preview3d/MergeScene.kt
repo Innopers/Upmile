@@ -66,7 +66,7 @@ object MergeScene {
         }
 
         val patches = listOf(
-            bigGround(300f, FAR_Z - 100f),
+            bigGround(NEAR_Z, FAR_Z - 100f),
             Patch(listOf(v(0f, accelEnd), v(W, accelEnd), v(0f, taperEnd)), Mat.ASPHALT),
             Patch(listOf(v(W, accelEnd), v(W + 3f, accelEnd), v(3f, taperEnd), v(0f, taperEnd)), Mat.ASPHALT),
             Patch(listOf(v(0f, 0f), v(goreX, 0f), v(0f, JOIN_Z)), Mat.ASPHALT),
@@ -95,10 +95,11 @@ object MergeScene {
 
         // traffic: each lane one speed, so cars in a lane never close up
         val total = pace.sec
+        val roadM = NEAR_Z - FAR_Z   // a car must not outrun its lane: s0 + speed * total stays inside it
         val cars = mutableListOf<Car>()
         for (k in 1 until lanes) {
             var s0 = 30f + (NEAR_Z - 80f) + rnd.nextFloat() * 40f
-            repeat(2) { cars += rnd.cruise(along(laneX(k)), s0, 22f - (k - 1), total); s0 += 70f + rnd.nextFloat() * 40f }
+            repeat(2) { cars += rnd.cruise(along(laneX(k)), s0.coerceAtMost(roadM - 22f * total - 5f), 22f - (k - 1), total); s0 += 70f + rnd.nextFloat() * 40f }
         }
         val passSec = pace.secAt(nearestS(cam, v(W / 2, JOIN_Z - 50f, EYE)))
         val passS = NEAR_Z - (JOIN_Z - 50f)
@@ -106,7 +107,7 @@ object MergeScene {
         val changeSec = pace.secAt(nearestS(cam, v(W / 2, changeStart, EYE)))
         val behindS = NEAR_Z - changeStart - 60f
         cars += Car(rnd.pickModel(), rnd.pickPaint(), along(laneX(lanes)), listOf(Key(0f, behindS - 17f * changeSec), Key(1f, behindS + 17f * (total - changeSec))))
-        for (k in 1..lanes) cars += rnd.cruise(against(oppX(k)), 300f + rnd.nextFloat() * 400f, 20f + k, total)
+        for (k in 1..lanes) cars += rnd.cruise(against(oppX(k)), (300f + rnd.nextFloat() * 400f).coerceAtMost(roadM - (20f + k) * total - 5f), 20f + k, total)
 
         return SceneSpec(
             surfaces = surfaces, patches = patches, solids = solids, props = props, cars = cars,
