@@ -129,6 +129,8 @@ object LeftTurnScene {
             Triple(-50f, -180f, Vec3(28f, 62f, 30f)), Triple(90f, -60f, Vec3(30f, 40f, 30f)), Triple(-90f, -240f, Vec3(30f, 50f, 30f)),
         )) props += Prop(PropKind.BUILDING_GLASS, v(x, z), size = size)
 
+        props.dropTreesNearPosts()
+
         // traffic. Paths are long enough that no car runs off its road before the scene ends.
         val cars = mutableListOf<Car>()
         val sLine = START_Z - (STOP_Z + NOSE)                         // a waiting car's s on a turn path

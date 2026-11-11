@@ -49,4 +49,18 @@ class RoundaboutSceneTest {
         assertTrue(s.props.any { it.kind == PropKind.ROUNDABOUT_SIGN } && s.props.any { it.kind == PropKind.YIELD_SIGN })
         assertTrue(s.patches.any { it.mat == Mat.GRASS && it.lift > 0f })
     }
+
+    /** Two cars wait, nose at the yield line, one at the north entry lane (x = -W/2) and one at the east entry lane (z = -80 - W/2). */
+    @Test fun twoCarsWaitAtTheNorthAndEastYieldLines() {
+        val w = 3.25f
+        val waiting = s.cars.filter { it.keys.first().s == it.keys.last().s }
+        assertEquals(2, waiting.size)
+        val n = waiting.single { abs(it.poseAt(0f).at.x + w / 2) < .01f }.poseAt(0f)
+        val e = waiting.single { abs(it.poseAt(0f).at.z + 80f + w / 2) < .01f }.poseAt(0f)
+        assertEquals(-80f - 14f - .3f - 2.3f, n.at.z, .5f); assertEquals(1f, n.dir.z, .01f)   // facing south, toward the ring
+        assertEquals(14f + .3f + 2.3f, e.at.x, .5f); assertEquals(-1f, e.dir.x, .01f)         // facing west
+    }
+
+    @Test fun endsInTheNorthArmsRightLane() = assertEquals(w2, s.camera.path.last().x, .01f)
+    private val w2 = 3.25f / 2
 }

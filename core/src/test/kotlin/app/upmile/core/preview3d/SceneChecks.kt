@@ -69,14 +69,16 @@ object SceneChecks {
         val boxes = spec.props.filter { it.kind in BUILDINGS && it.size != null }
         for (p in spec.props.filter { it.kind == PropKind.TREE }) {
             assertTrue("tree on or beside the road at ${p.at}", !onSurface(spec, p.at, 0.5f, p.at.y))
+            for (o in spec.props.filter { it.kind in POSTED && it.kind != PropKind.TREE }) for (b in basePoints(o))
+                assertTrue("tree ${p.at} only ${dist(p.at, b)} m from a ${o.kind} at ${o.at}", dist(p.at, b) >= TREE_APART)
             boxes.forEach { b -> assertTrue("tree ${p.at} inside ${b.kind} at ${b.at}", !inside(p.at, footprint(b, 1f))) }
         }
         for (b in boxes) (footprint(b, 0f) + b.at).forEach { c -> assertTrue("${b.kind} at ${b.at} covers road at $c", !onSurface(spec, c, 0f, b.at.y)) }
     }
 
     private val POSTED = setOf(
-        PropKind.STREET_LAMP, PropKind.SIGNAL_MAST, PropKind.SIGN_GREEN, PropKind.SIGN_BLUE, PropKind.WARNING_CURVE_LEFT, PropKind.WARNING_ACCIDENT,
-        PropKind.SPEED_LIMIT, PropKind.ROUNDABOUT_SIGN, PropKind.YIELD_SIGN, PropKind.CHEVRON_LEFT, PropKind.CONVEX_MIRROR, PropKind.PILLAR, PropKind.POST, PropKind.TREE,
+        PropKind.STREET_LAMP, PropKind.SIGNAL_MAST, PropKind.SIGN_GREEN, PropKind.SIGN_BLUE, PropKind.WARNING_CURVE_LEFT, PropKind.WARNING_CURVE_RIGHT, PropKind.WARNING_ACCIDENT,
+        PropKind.SPEED_LIMIT, PropKind.ROUNDABOUT_SIGN, PropKind.YIELD_SIGN, PropKind.CHEVRON_LEFT, PropKind.CHEVRON_RIGHT, PropKind.CONVEX_MIRROR, PropKind.PILLAR, PropKind.POST, PropKind.TREE,
     )
 
     /** Base points of a posted prop: a sign has two posts at +-(size.x/2 - .35) along its right; everything else stands at `at`. */
@@ -118,6 +120,7 @@ object SceneChecks {
         } || spec.patches.any { it.mat in DRIVABLE && inside(p, it.outline) && abs(it.outline.map { v -> v.y }.average().toFloat() + it.lift - level) <= LEVEL_TOL }
 
     private const val LEVEL_TOL = 2.0f
+    private const val TREE_APART = 2.0f    // a trunk and its crown need room beside a pole or sign
 
     private fun segY(p: Vec3, a: Vec3, b: Vec3): Float {
         val dx = b.x - a.x; val dz = b.z - a.z; val l2 = dx * dx + dz * dz

@@ -41,4 +41,13 @@ class SceneChecksTest {
         SceneChecks.nothingStandsInTheWay(base.copy(props = listOf(Prop(PropKind.SIGN_BLUE, v(eyeX + 6f, -40f), size = Vec3(3.2f, 1f, 2.2f)))))
     @Test fun lampOnAnotherLevelPasses() =
         SceneChecks.nothingStandsInTheWay(base.copy(props = listOf(Prop(PropKind.STREET_LAMP, v(eyeX, -40f, 6f)))))
+
+    @Test fun treeBesideASignIsRejected() = rejects {
+        SceneChecks.propsClear(base.copy(props = listOf(Prop(PropKind.ROUNDABOUT_SIGN, v(900f, 0f)), Prop(PropKind.TREE, v(900.5f, 0f)))))
+    }
+    @Test fun treeBesideALampIsRejected() = rejects {
+        SceneChecks.propsClear(base.copy(props = listOf(Prop(PropKind.STREET_LAMP, v(900f, 0f)), Prop(PropKind.TREE, v(901.5f, 0f)))))
+    }
+    @Test fun treeWellAwayFromASignPasses() =
+        SceneChecks.propsClear(base.copy(props = listOf(Prop(PropKind.ROUNDABOUT_SIGN, v(900f, 0f)), Prop(PropKind.TREE, v(902.5f, 0f)), Prop(PropKind.TREE, v(902.5f, 1f)))))
 }

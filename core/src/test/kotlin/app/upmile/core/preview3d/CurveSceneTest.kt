@@ -63,4 +63,29 @@ class CurveSceneTest {
         val road = s.camera.path
         assertTrue(road.minOf { SceneChecks.dist(it, t.at) } >= 6f)
     }
+
+    private val rightSeg = seg.copy(params = mapOf("radiusM" to 45.0, "turnDeg" to 90.0))
+    private val LEFT_KINDS = setOf(PropKind.CHEVRON_LEFT, PropKind.WARNING_CURVE_LEFT)
+    private val RIGHT_KINDS = setOf(PropKind.CHEVRON_RIGHT, PropKind.WARNING_CURVE_RIGHT)
+
+    @Test fun rightCurveUsesRightHandSigns() {
+        val r = CurveScene.build(rightSeg)
+        assertTrue(r.props.none { it.kind in LEFT_KINDS })
+        assertTrue(r.props.count { it.kind == PropKind.CHEVRON_RIGHT } >= 7)
+        assertEquals(1, r.props.count { it.kind == PropKind.WARNING_CURVE_RIGHT })
+        assertTrue(s.props.none { it.kind in RIGHT_KINDS })
+    }
+
+    /** Chevrons stand on the outside of the bend and face the driver: heading equals the road's heading there. */
+    @Test fun chevronsStandOutsideAndFaceTheDriver() {
+        for ((spec, kind, outerSign) in listOf(Triple(s, PropKind.CHEVRON_LEFT, 1f), Triple(CurveScene.build(rightSeg), PropKind.CHEVRON_RIGHT, -1f))) {
+            val road = offset(spec.camera.path, -1.625f)   // camera is on the right lane: back to the centreline
+            spec.props.filter { it.kind == kind }.forEach { c ->
+                val p = pointAt(road, nearestS(road, c.at))
+                val side = (c.at.x - p.at.x) * -p.dir.z + (c.at.z - p.at.z) * p.dir.x      // + = right of travel
+                assertEquals("outside", outerSign * 4.6f, side, .3f)
+                assertEquals("faces the driver", heading(p.dir), c.heading, deg(3f))
+            }
+        }
+    }
 }

@@ -65,6 +65,7 @@ object RoundaboutScene {
         props += Prop(PropKind.ROUNDABOUT_SIGN, v(W + 1.8f, -50f), 0f)
         props += Prop(PropKind.YIELD_SIGN, v(W + 1.8f, CZ + r + 1.5f), 0f)
 
+        props.dropTreesNearPosts()   // street trees skip the lamps and signs
         // island: grass inside a kerb; the ring's outer edge is a dashed white circle
         patches += Patch(ring(r - 5.5f - .1f).dropLast(1).filterIndexed { i, _ -> i % 3 == 0 }, Mat.GRASS, .15f)
         val solids = listOf(Extrusion(ring(r - 5.5f), KERB, Mat.KERB))

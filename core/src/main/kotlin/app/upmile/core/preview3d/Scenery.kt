@@ -1,5 +1,6 @@
 package app.upmile.core.preview3d
 
+import kotlin.math.hypot
 import kotlin.random.Random
 
 /** Korean paint mix: white most common, then black, silver and grey. */
@@ -57,4 +58,17 @@ val KERB = listOf(-.1f to 0f, .1f to 0f, .1f to .15f, -.1f to .15f)
 fun posts(path: List<Vec3>, every: Float = 4f): List<Prop> {
     val total = arcLengths(path).last()
     return generateSequence(0f) { it + every }.takeWhile { it <= total }.map { Prop(PropKind.POST, pointAt(path, it).at) }.toList()
+}
+
+private val NOT_POSTS = setOf(PropKind.TREE, PropKind.BUILDING_GLASS, PropKind.BUILDING_APT, PropKind.BUILDING_SHOP, PropKind.ROAD_TEXT, PropKind.SPEED_BUMP, PropKind.HEIGHT_BAR, PropKind.CEILING_LIGHT, PropKind.GANTRY_GREEN, PropKind.TWIN_LAMP)
+
+/** Drops trees within [apart] metres of another prop's post (a sign has two posts at +-(size.x/2 - .35) along its right). */
+fun MutableList<Prop>.dropTreesNearPosts(apart: Float = 2.5f) {
+    val posts = filter { it.kind !in NOT_POSTS }.flatMap { p ->
+        if ((p.kind == PropKind.SIGN_GREEN || p.kind == PropKind.SIGN_BLUE) && p.size != null) {
+            val k = p.size.x / 2 - .35f
+            listOf(k, -k).map { Vec3(p.at.x + kotlin.math.cos(p.heading) * it, p.at.y, p.at.z + kotlin.math.sin(p.heading) * it) }
+        } else listOf(p.at)
+    }
+    removeAll { t -> t.kind == PropKind.TREE && posts.any { hypot(it.x - t.at.x, it.z - t.at.z) < apart } }
 }

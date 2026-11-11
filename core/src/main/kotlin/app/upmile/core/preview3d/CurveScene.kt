@@ -49,10 +49,10 @@ object CurveScene {
         var s = 0f
         while (s <= arcLen + .01f) {
             val p = pointAt(road, sArc0 + s)
-            props += Prop(PropKind.CHEVRON_LEFT, offset(listOf(p.at, p.at + p.dir), 4.6f * out)[0], heading(p.dir), Vec3(.45f, .6f, 1.0f))
+            props += Prop((if (left) PropKind.CHEVRON_LEFT else PropKind.CHEVRON_RIGHT), offset(listOf(p.at, p.at + p.dir), 4.6f * out)[0], heading(p.dir), Vec3(.45f, .6f, 1.0f))
             s += 10f
         }
-        for ((kind, at) in listOf(PropKind.WARNING_CURVE_LEFT to 50f, PropKind.SPEED_LIMIT to 58f)) {
+        for ((kind, at) in listOf((if (left) PropKind.WARNING_CURVE_LEFT else PropKind.WARNING_CURVE_RIGHT) to 50f, PropKind.SPEED_LIMIT to 58f)) {
             val p = pointAt(road, BEFORE + at)
             props += Prop(kind, offset(listOf(p.at, p.at + p.dir), 5f)[0], heading(p.dir), text = if (kind == PropKind.SPEED_LIMIT) listOf("30") else emptyList())
         }
