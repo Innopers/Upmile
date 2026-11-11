@@ -56,4 +56,8 @@ class MergeSceneTest {
         val three = MergeScene.build(seg.copy(params = mapOf("lanes" to 3.0)))
         SceneChecks.all(three, listOf("진입로 주행", "가속 차로", "왼쪽 깜빡이·미러 확인", "합류", "합류 완료"))
     }
+
+    @Test fun accelerationLaneLengthIsClamped() = listOf(1000.0, 80.0).forEach { a ->
+        SceneChecks.all(MergeScene.build(seg.copy(params = mapOf("lanes" to 5.0, "accelLaneM" to a))), listOf("진입로 주행", "가속 차로", "왼쪽 깜빡이·미러 확인", "합류", "합류 완료"))
+    }
 }

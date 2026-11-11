@@ -13,12 +13,12 @@ object MergeScene {
     private const val W = Kr.LANE_HW
     private const val JOIN_Z = -60f
     private const val END_Z = -340f
-    private const val NEAR_Z = 80f
+    private const val NEAR_Z = 420f   // behind the start so traffic spawning behind us still stands on the road
     private const val FAR_Z = -900f
 
     fun build(segment: HardSegment): SceneSpec {
         val lanes = (segment.params["lanes"] ?: 5.0).toInt().coerceIn(2, 6)
-        val accel = (segment.params["accelLaneM"] ?: 180.0).toFloat().coerceIn(80f, 300f)
+        val accel = (segment.params["accelLaneM"] ?: 180.0).toFloat().coerceIn(80f, 220f) // above 220 the last cue (change end + 15 m) nears END_Z
         val rnd = Random(segment.id.hashCode())
         val left = -lanes * W
         val medianX = left - 1.3f
@@ -89,13 +89,15 @@ object MergeScene {
         props += Prop(PropKind.GANTRY_GREEN, v(W + 3.8f, -300f), size = Vec3(W + 3.8f - medianX, 6f, 0f), text = gantry)
         for (z in listOf(-200f, -300f, -400f)) props += Prop(PropKind.BUILDING_APT, v(55f, z), size = Vec3(12f, 60f + rnd.nextFloat() * 12f, 55f))
         for (z in listOf(-150f, -260f, -370f)) props += Prop(PropKind.BUILDING_APT, v(farLeft - 38f, z), size = Vec3(12f, 55f + rnd.nextFloat() * 15f, 55f))
-        props += rnd.trees(along(medianX), -medianX + 6f + 20f, -medianX + 6f + 34f, every = 16f)
+        // trees fill the gaps between road and apartments; the symmetric helper also drops a mirror band that is filtered away
+        props += rnd.trees(along(0f), 33f, 46f, every = 16f).filter { it.at.x > 0f }       // right: clear of the ramp start (x<=28), short of the apartments (x>=49)
+        props += rnd.trees(along(farLeft), 8f, 28f, every = 16f).filter { it.at.x < farLeft } // left: short of the apartments at farLeft-38
 
         // traffic: each lane one speed, so cars in a lane never close up
         val total = pace.sec
         val cars = mutableListOf<Car>()
         for (k in 1 until lanes) {
-            var s0 = 30f + rnd.nextFloat() * 40f
+            var s0 = 30f + (NEAR_Z - 80f) + rnd.nextFloat() * 40f
             repeat(2) { cars += rnd.cruise(along(laneX(k)), s0, 22f - (k - 1), total); s0 += 70f + rnd.nextFloat() * 40f }
         }
         val passSec = pace.secAt(nearestS(cam, v(W / 2, JOIN_Z - 50f, EYE)))

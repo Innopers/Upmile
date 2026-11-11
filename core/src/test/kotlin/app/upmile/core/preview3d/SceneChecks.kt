@@ -2,14 +2,17 @@ package app.upmile.core.preview3d
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import kotlin.math.abs
+import kotlin.math.cos
 import kotlin.math.hypot
+import kotlin.math.sin
 
 /** Invariants every built scene keeps; each scene test calls [all]. */
 object SceneChecks {
     private val DRIVABLE = setOf(Mat.ASPHALT, Mat.EPOXY, Mat.CONCRETE)
 
     fun all(spec: SceneSpec, expectedCues: List<String>) {
-        cues(spec, expectedCues); timing(spec); onRoad(spec); gaps(spec)
+        cues(spec, expectedCues); timing(spec); onRoad(spec); gaps(spec); propsClear(spec)
     }
 
     fun cues(spec: SceneSpec, expected: List<String>) {
@@ -27,22 +30,69 @@ object SceneChecks {
         spec.cars.forEach { c -> assertTrue("car keys sorted", c.keys.zipWithNext().all { (a, b) -> b.t >= a.t }) }
     }
 
-    /** At every 1% of progress the eye stands over a drivable ribbon or patch. */
+    /** At every 1% of progress the eye and every car stand over a drivable surface, and keep CLEARANCE from every extruded solid. */
     fun onRoad(spec: SceneSpec) = samples().forEach { t ->
         val eye = spec.cameraAt(t).first
-        val ok = spec.surfaces.any { it.mat in DRIVABLE && within(eye, it) } || spec.patches.any { it.mat in DRIVABLE && inside(eye, it.outline) }
-        assertTrue("eye off the road at t=$t: $eye", ok)
-    }
-
-    /** At every 1% of progress no car is within MIN_GAP of the eye or of another car (XZ plane). */
-    fun gaps(spec: SceneSpec) = samples().forEach { t ->
-        val eye = spec.cameraAt(t).first
         val cars = spec.cars.map { it.poseAt(t).at }
-        cars.forEachIndexed { i, c ->
-            assertTrue("car $i is ${dist(c, eye)} m from the camera at t=$t", dist(c, eye) >= MIN_GAP)
-            for (j in i + 1 until cars.size) assertTrue("cars $i and $j are ${dist(c, cars[j])} m apart at t=$t", dist(c, cars[j]) >= MIN_GAP)
+        assertTrue("eye off the road at t=$t: $eye", drivable(spec, eye))
+        cars.forEachIndexed { i, c -> assertTrue("car $i off the road at t=$t: $c", drivable(spec, c)) }
+        for ((who, p) in listOf("eye" to eye) + cars.mapIndexed { i, c -> "car $i" to c }) for (x in spec.solids) {
+            val d = x.profile.map { it.first }.distinct().minOf { o -> offset(x.path, o).zipWithNext().minOf { (a, b) -> segDist(p, a, b) } }
+            assertTrue("$who is $d m from a ${x.mat} solid at t=$t", d >= CLEARANCE)
         }
     }
+
+    /** At every 1% of progress no car is within MIN_GAP of the eye or another car, nor in the same lane closer than SAME_LANE_LONG. */
+    fun gaps(spec: SceneSpec) = samples().forEach { t ->
+        val (eye, look) = spec.cameraAt(t)
+        val cars = spec.cars.map { it.poseAt(t) }
+        cars.forEachIndexed { i, c ->
+            assertTrue("car $i is ${dist(c.at, eye)} m from the camera at t=$t", dist(c.at, eye) >= MIN_GAP)
+            sameLane("car $i vs the camera at t=$t", eye, Vec3(look.x - eye.x, 0f, look.z - eye.z), c.at)
+            for (j in i + 1 until cars.size) {
+                assertTrue("cars $i and $j are ${dist(c.at, cars[j].at)} m apart at t=$t", dist(c.at, cars[j].at) >= MIN_GAP)
+                sameLane("cars $i and $j at t=$t", c.at, c.dir, cars[j].at)
+            }
+        }
+    }
+
+    private fun sameLane(what: String, a: Vec3, dir: Vec3, b: Vec3) {
+        val n = hypot(dir.x, dir.z); if (n < 1e-4f) return
+        val fx = dir.x / n; val fz = dir.z / n
+        val dx = b.x - a.x; val dz = b.z - a.z
+        val long = abs(dx * fx + dz * fz); val lat = abs(dx * -fz + dz * fx)
+        assertTrue("$what: ${lat} m beside, only $long m along the same lane", lat >= SAME_LANE_LAT || long >= SAME_LANE_LONG)
+    }
+
+    /** Trees stand off the road and out of buildings; buildings do not sit on the road. */
+    fun propsClear(spec: SceneSpec) {
+        val boxes = spec.props.filter { it.kind in BUILDINGS && it.size != null }
+        for (p in spec.props.filter { it.kind == PropKind.TREE }) {
+            assertTrue("tree on or beside the road at ${p.at}", !onSurface(spec, p.at, 0.5f))
+            boxes.forEach { b -> assertTrue("tree ${p.at} inside ${b.kind} at ${b.at}", !inside(p.at, footprint(b, 1f))) }
+        }
+        for (b in boxes) (footprint(b, 0f) + b.at).forEach { c -> assertTrue("${b.kind} at ${b.at} covers road at $c", !onSurface(spec, c, 0f)) }
+    }
+
+    private val BUILDINGS = setOf(PropKind.BUILDING_GLASS, PropKind.BUILDING_APT, PropKind.BUILDING_SHOP)
+
+    private fun footprint(p: Prop, grow: Float): List<Vec3> {
+        val h = p.heading; val sz = p.size!!
+        val rx = cos(h); val rz = sin(h); val lx = -sin(h); val lz = cos(h)
+        val w = sz.x / 2 + grow; val d = sz.z / 2 + grow
+        return listOf(1f to 1f, 1f to -1f, -1f to -1f, -1f to 1f).map { (a, b) -> Vec3(p.at.x + rx * w * a + lx * d * b, 0f, p.at.z + rz * w * a + lz * d * b) }
+    }
+
+    private fun drivable(spec: SceneSpec, p: Vec3) = spec.surfaces.any { it.mat in DRIVABLE && within(p, it) } || spec.patches.any { it.mat in DRIVABLE && inside(p, it.outline) }
+
+    /** On a drivable ribbon (within half width + [margin]) or inside a drivable patch. */
+    private fun onSurface(spec: SceneSpec, p: Vec3, margin: Float) =
+        spec.surfaces.any { it.mat in DRIVABLE && it.center.zipWithNext().any { (a, b) -> segDist(p, a, b) <= it.width / 2 + margin } } ||
+            spec.patches.any { it.mat in DRIVABLE && inside(p, it.outline) }
+
+    private const val CLEARANCE = 0.9f      // car body half-width plus a hand of margin from a barrier or rail
+    private const val SAME_LANE_LAT = 2.0f  // closer sideways than this is the same lane (lane width 3.5 m)
+    private const val SAME_LANE_LONG = 5.0f // a car is ~4.6 m long, so nose-to-tail needs at least this
 
     fun deterministic(build: () -> SceneSpec) = assertEquals(build(), build())
 
