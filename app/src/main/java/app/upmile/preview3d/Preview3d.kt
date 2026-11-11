@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -34,13 +35,15 @@ import app.upmile.BuildConfig
 import app.upmile.core.preview3d.SceneSpec
 import app.upmile.core.preview3d.TemplateScene
 import app.upmile.core.preview3d.arcFraction
+import com.google.android.filament.Engine
 import com.google.android.filament.Fence
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 
 /**
  * The rehearsal view: the 3D scene under the Canvas preview. The Canvas shows at once and fades out after the first
- * 3D frame; if 3D cannot start (or shows nothing within 10 s of the sky's GPU work being done) the Canvas simply stays.
+ * 3D frame, and back in while a new segment's scene has not drawn yet; if 3D cannot start (or shows nothing within
+ * 10 s of the sky's GPU work being done) the Canvas simply stays.
  * SurfaceView ignores Compose clipping, so [cornerColor] paints the outside of the rounded corners on top.
  */
 @Composable
@@ -55,8 +58,7 @@ internal fun Preview3d(spec: SceneSpec, flat: TemplateScene, progress: Float, co
         val r = Preview3dResources.get(context) ?: return@LaunchedEffect
         // SceneView blocks the main thread on a shared engine's backend when its surface is sized: let the GPU finish the sky first
         try {
-            val idle = r.engine.createFence()
-            try { while (idle.wait(Fence.Mode.FLUSH, 0) != Fence.FenceStatus.CONDITION_SATISFIED) withFrameNanos {} } finally { r.engine.destroyFence(idle) }
+            r.engine.awaitIdle()
         } catch (e: CancellationException) {
             throw e // the screen left: not a failure
         } catch (e: Throwable) {
@@ -66,6 +68,8 @@ internal fun Preview3d(spec: SceneSpec, flat: TemplateScene, progress: Float, co
         res = r
     }
     var ready by remember { mutableStateOf(false) }
+    /** This scene has drawn its first frame. Until then (a switch compiling new shaders) the view still shows the last scene. */
+    var sceneReady by remember(spec) { mutableStateOf(false) }
     /** No first frame in time: this screen keeps the Canvas, for every segment and replay (other screens may try again). */
     var timedOut by remember { mutableStateOf(false) }
     val built = remember(spec, res) {
@@ -90,9 +94,26 @@ internal fun Preview3d(spec: SceneSpec, flat: TemplateScene, progress: Float, co
         }
     }
     val alive = built != null && !Preview3dResources.failed && !timedOut
-    val canvasAlpha by animateFloatAsState(if (ready && alive) 0f else 1f, tween(300), label = "canvasFade")
+    /*
+     * Once 3D stops with its view up, the view stays under the opaque Canvas, drawing nothing new, until the GPU has
+     * caught up (parked). Removing a SceneView on a shared engine waits for its backend on the main thread
+     * (flushAndWait on surface detach): mid shader compile that froze the screen for seconds.
+     */
+    var viewUp by remember { mutableStateOf(false) }
+    var parked by remember { mutableStateOf(false) }
+    SideEffect { if (alive) viewUp = true }
+    if (viewUp && !alive && !parked) LaunchedEffect(Unit) {
+        val t0 = SystemClock.elapsedRealtime()
+        try { res!!.engine.awaitIdle() } catch (e: CancellationException) { throw e } catch (e: Throwable) { Log.w(Preview3dResources.TAG, "park fence: $e") }
+        Log.i(Preview3dResources.TAG, "3D view parked ${SystemClock.elapsedRealtime() - t0} ms after 3D stopped")
+        parked = true
+    }
+    // a scene that has not drawn yet gets the Canvas back after 250 ms: warm switches draw sooner and do not flash
+    val fade by animateFloatAsState(if (ready && sceneReady) 0f else 1f, tween(300, delayMillis = if (ready && !sceneReady) 250 else 0), label = "canvasFade")
+    val canvasAlpha = if (alive) fade else 1f
     Box(modifier) {
-        if (alive) FilamentPreview(built!!, progress, res!!, onFirstFrame = { // called for each scene's first frame
+        if (alive || viewUp && !parked) FilamentPreview(built.takeIf { alive }, progress, res!!, onFirstFrame = { // called for each scene's first frame
+            sceneReady = true
             if (!ready) {
                 ready = true
                 val now = SystemClock.elapsedRealtime()
@@ -109,3 +130,9 @@ internal fun Preview3d(spec: SceneSpec, flat: TemplateScene, progress: Float, co
 }
 
 private const val FIRST_FRAME_TIMEOUT_MS = 10_000L
+
+/** Suspends, a frame at a time, until the GPU has run everything queued so far. */
+private suspend fun Engine.awaitIdle() {
+    val idle = createFence()
+    try { while (idle.wait(Fence.Mode.FLUSH, 0) != Fence.FenceStatus.CONDITION_SATISFIED) withFrameNanos {} } finally { destroyFence(idle) }
+}

@@ -236,9 +236,9 @@ private fun MeshData.bounds(): Box {
     return Box((lo[0] + hi[0]) / 2, (lo[1] + hi[1]) / 2, (lo[2] + hi[2]) / 2, (hi[0] - lo[0]) / 2, (hi[1] - lo[1]) / 2, (hi[2] - lo[2]) / 2)
 }
 
-/** The 3D view of [built] at [progress]; calls [onFirstFrame] once a frame has reached the screen. */
+/** The 3D view of [built] at [progress]; calls [onFirstFrame] once a frame has reached the screen. Null: 3D stopped, nothing to draw or update. */
 @Composable
-internal fun FilamentPreview(built: SceneNodes, progress: Float, res: Preview3dResources, onFirstFrame: () -> Unit, modifier: Modifier) {
+internal fun FilamentPreview(built: SceneNodes?, progress: Float, res: Preview3dResources, onFirstFrame: () -> Unit, modifier: Modifier) {
     val engine = res.engine
     val view = rememberView(engine)
     val renderer = rememberRenderer(engine)
@@ -256,14 +256,14 @@ internal fun FilamentPreview(built: SceneNodes, progress: Float, res: Preview3dR
         modifier = modifier,
         engine = engine, modelLoader = res.modelLoader, materialLoader = res.materialLoader, environmentLoader = res.environmentLoader,
         view = view, renderer = renderer, scene = scene, environment = res.environment,
-        mainLightNode = sun, cameraNode = camera, childNodes = built.nodes, cameraManipulator = null,
+        mainLightNode = sun, cameraNode = camera, childNodes = built?.nodes.orEmpty(), cameraManipulator = null,
         onViewCreated = {
             view.setShadowingEnabled(true)
             view.antiAliasing = View.AntiAliasing.FXAA
             view.bloomOptions = view.bloomOptions.apply { enabled = true; strength = .08f }
         },
         onFrame = {
-            try {
+            if (built != null) try {
                 built.update(t, camera, view, sun)
                 if (BuildConfig.DEBUG) probe.fps(renderer.shouldRenderFrame())
                 if (probe.drawn(built, engine)) firstFrame()
