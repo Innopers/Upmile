@@ -26,4 +26,11 @@ class SceneChecksTest {
     @Test fun treeInsideABuilding() = rejects {
         SceneChecks.propsClear(base.copy(props = listOf(Prop(PropKind.BUILDING_APT, v(900f, 0f), size = Vec3(12f, 30f, 20f)), Prop(PropKind.TREE, v(905f, 5f)))))
     }
+    private fun flatRoad(y: Float) = base.copy(
+        surfaces = listOf(Ribbon(listOf(v(0f, 50f, y), v(0f, -50f, y)), 6.5f, Mat.CONCRETE)), patches = emptyList(), solids = emptyList(), cars = emptyList(),
+    )
+    private val tower = Prop(PropKind.BUILDING_GLASS, v(0f, 0f), size = Vec3(7.2f, 38f, 20f))
+
+    @Test fun buildingOnTheSameLevelRoadIsRejected() = rejects { SceneChecks.propsClear(flatRoad(0f).copy(props = listOf(tower))) }
+    @Test fun buildingOverARoad4mBelowIsAccepted() = SceneChecks.propsClear(flatRoad(-4f).copy(props = listOf(tower)))
 }

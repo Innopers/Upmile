@@ -68,10 +68,10 @@ object SceneChecks {
     fun propsClear(spec: SceneSpec) {
         val boxes = spec.props.filter { it.kind in BUILDINGS && it.size != null }
         for (p in spec.props.filter { it.kind == PropKind.TREE }) {
-            assertTrue("tree on or beside the road at ${p.at}", !onSurface(spec, p.at, 0.5f))
+            assertTrue("tree on or beside the road at ${p.at}", !onSurface(spec, p.at, 0.5f, p.at.y))
             boxes.forEach { b -> assertTrue("tree ${p.at} inside ${b.kind} at ${b.at}", !inside(p.at, footprint(b, 1f))) }
         }
-        for (b in boxes) (footprint(b, 0f) + b.at).forEach { c -> assertTrue("${b.kind} at ${b.at} covers road at $c", !onSurface(spec, c, 0f)) }
+        for (b in boxes) (footprint(b, 0f) + b.at).forEach { c -> assertTrue("${b.kind} at ${b.at} covers road at $c", !onSurface(spec, c, 0f, b.at.y)) }
     }
 
     private val BUILDINGS = setOf(PropKind.BUILDING_GLASS, PropKind.BUILDING_APT, PropKind.BUILDING_SHOP)
@@ -85,10 +85,24 @@ object SceneChecks {
 
     private fun drivable(spec: SceneSpec, p: Vec3) = spec.surfaces.any { it.mat in DRIVABLE && within(p, it) } || spec.patches.any { it.mat in DRIVABLE && inside(p, it.outline) }
 
-    /** On a drivable ribbon (within half width + [margin]) or inside a drivable patch. */
-    private fun onSurface(spec: SceneSpec, p: Vec3, margin: Float) =
-        spec.surfaces.any { it.mat in DRIVABLE && it.center.zipWithNext().any { (a, b) -> segDist(p, a, b) <= it.width / 2 + margin } } ||
-            spec.patches.any { it.mat in DRIVABLE && inside(p, it.outline) }
+    /**
+     * On a drivable ribbon (within half width + [margin]) or inside a drivable patch. With [level] only a surface whose
+     * height there is within LEVEL_TOL of it counts, so a building may stand over an underground road.
+     */
+    private fun onSurface(spec: SceneSpec, p: Vec3, margin: Float, level: Float) =
+        spec.surfaces.any { r ->
+            r.mat in DRIVABLE && r.center.zipWithNext().any { (a, b) ->
+                segDist(p, a, b) <= r.width / 2 + margin && abs(segY(p, a, b) + r.lift - level) <= LEVEL_TOL
+            }
+        } || spec.patches.any { it.mat in DRIVABLE && inside(p, it.outline) && abs(it.outline.map { v -> v.y }.average().toFloat() + it.lift - level) <= LEVEL_TOL }
+
+    private const val LEVEL_TOL = 2.0f
+
+    private fun segY(p: Vec3, a: Vec3, b: Vec3): Float {
+        val dx = b.x - a.x; val dz = b.z - a.z; val l2 = dx * dx + dz * dz
+        val u = if (l2 == 0f) 0f else (((p.x - a.x) * dx + (p.z - a.z) * dz) / l2).coerceIn(0f, 1f)
+        return a.y + (b.y - a.y) * u
+    }
 
     private const val CLEARANCE = 0.9f      // car body half-width plus a hand of margin from a barrier or rail
     private const val SAME_LANE_LAT = 2.0f  // closer sideways than this is the same lane (lane width 3.5 m)
