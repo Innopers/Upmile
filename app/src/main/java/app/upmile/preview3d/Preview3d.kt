@@ -131,8 +131,8 @@ internal fun Preview3d(spec: SceneSpec, flat: TemplateScene, progress: Float, co
 
 private const val FIRST_FRAME_TIMEOUT_MS = 10_000L
 
-/** Suspends, a frame at a time, until the GPU has run everything queued so far. */
+/** Suspends, a frame at a time, until the GPU has run everything queued so far (or the fence reports an error). */
 private suspend fun Engine.awaitIdle() {
     val idle = createFence()
-    try { while (idle.wait(Fence.Mode.FLUSH, 0) != Fence.FenceStatus.CONDITION_SATISFIED) withFrameNanos {} } finally { destroyFence(idle) }
+    try { while (idle.wait(Fence.Mode.FLUSH, 0) == Fence.FenceStatus.TIMEOUT_EXPIRED) withFrameNanos {} } finally { destroyFence(idle) }
 }

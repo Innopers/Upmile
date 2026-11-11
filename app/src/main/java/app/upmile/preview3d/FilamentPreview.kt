@@ -267,7 +267,7 @@ internal fun FilamentPreview(built: SceneNodes?, progress: Float, res: Preview3d
                 built.update(t, camera, view, sun)
                 if (BuildConfig.DEBUG) probe.fps(renderer.shouldRenderFrame())
                 if (probe.drawn(built, engine)) firstFrame()
-            } catch (e: Throwable) { // the 3D view leaves on the next composition; until then the frames stay quiet
+            } catch (e: Throwable) { // the view is emptied on the next composition and parked; until then the frames stay quiet
                 if (!Preview3dResources.failed) Preview3dResources.markFailed("frame: $e")
             }
         },

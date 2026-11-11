@@ -15,6 +15,7 @@ class DemoRoutesSceneTest {
         segments.forEach { seg ->
             val s = SceneBuilder.build(seg)
             assertTrue("${seg.id} has cues", s.cues.isNotEmpty())
+            SceneChecks.cues(s, s.cues.map { it.second }) // order and range; the wording is checked per scene type
             SceneChecks.timing(s); SceneChecks.onRoad(s); SceneChecks.gaps(s); SceneChecks.propsClear(s); SceneChecks.nothingStandsInTheWay(s)
         }
     }
