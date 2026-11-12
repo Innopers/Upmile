@@ -64,14 +64,7 @@ internal class Preview3dResources private constructor(private val context: Conte
      */
     private fun gradientSky(iblLuminance: Float): Skybox {
         val n = 32
-        val px = FloatArray(6 * n * n * 3)
-        var i = 0
-        for (face in 0 until 6) for (row in 0 until n) for (col in 0 until n) {
-            val s = 2 * (col + .5f) / n - 1; val t = 1 - 2 * (row + .5f) / n
-            val up = when (face) { 2 -> 1f; 3 -> -1f; else -> t }
-            val k = (up / sqrt(1 + s * s + t * t) / SKY_TOP_SIN).coerceIn(0f, 1f)
-            for (c in 0 until 3) px[i++] = (SKY_HORIZON[c] + (SKY_TOP[c] - SKY_HORIZON[c]) * k) / iblLuminance
-        }
+        val px = skyTexels(n).also { for (i in it.indices) it[i] /= iblLuminance }
         val bytes = ByteBuffer.allocateDirect(4 * px.size).order(ByteOrder.nativeOrder()).also { it.asFloatBuffer().put(px) }
         val cube = Texture.Builder().width(n).height(n).levels(1).sampler(Texture.Sampler.SAMPLER_CUBEMAP).format(Texture.InternalFormat.RGB16F).build(engine)
         cube.setImage(engine, 0, 0, 0, 0, n, n, 6, Texture.PixelBufferDescriptor(bytes, Texture.Format.RGB, Texture.Type.FLOAT))
@@ -80,7 +73,7 @@ internal class Preview3dResources private constructor(private val context: Conte
 
     /**
      * Filament's materials read v as 1 - v (OpenGL, bottom-left origin) while PropKit puts v = 0 at the top of a bitmap,
-     * so every bitmap is uploaded upside down. The tiling ground textures do not care.
+     * so every bitmap is uploaded upside down.
      */
     private fun texture(bitmap: Bitmap): Texture =
         ImageTexture.Builder().bitmap(Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, Matrix().apply { preScale(1f, -1f) }, false)).build(engine)
@@ -190,12 +183,25 @@ private const val SKY_MAX_EXPONENT = 133
 
 /** 1 / (1.2 x 2^EV100) at the camera's default sunny-16 exposure (f/16, 1/125 s, ISO 100): EV100 = log2(16² x 125). */
 private const val SUNNY_16 = 1f / 38_400f
-/** Linear and exposed, before the Filmic tone map: on screen about #E3ECF2. The outdoor fog is this colour, so far things melt into the sky. */
+/** Linear and exposed, the Filmic inverse of #E3ECF2; measures about #D0DDE2 on the emulator. The outdoor fog is this colour, so far things melt into the sky. */
 internal val SKY_HORIZON = floatArrayOf(.854f, 1.194f, 1.62f)
-/** On screen about #9EC3E6. */
-private val SKY_TOP = floatArrayOf(.228f, .406f, .944f)
+/** Linear and exposed, the Filmic inverse of #9EC3E6; measures about #A8C3E8 on the emulator. */
+internal val SKY_TOP = floatArrayOf(.228f, .406f, .944f)
 /** sin 20 degrees: the top colour shows below the top of the view. */
 private const val SKY_TOP_SIN = .35f
+
+/** The sky cubemap's RGB texels (faces +X -X +Y -Y +Z -Z, [n] x [n] each; on a side face row 0 is the top): [SKY_HORIZON] rising to [SKY_TOP]. */
+internal fun skyTexels(n: Int): FloatArray {
+    val px = FloatArray(6 * n * n * 3)
+    var i = 0
+    for (face in 0 until 6) for (row in 0 until n) for (col in 0 until n) {
+        val s = 2 * (col + .5f) / n - 1; val t = 1 - 2 * (row + .5f) / n
+        val up = when (face) { 2 -> 1f; 3 -> -1f; else -> t }
+        val k = (up / sqrt(1 + s * s + t * t) / SKY_TOP_SIN).coerceIn(0f, 1f)
+        for (c in 0 until 3) px[i++] = SKY_HORIZON[c] + (SKY_TOP[c] - SKY_HORIZON[c]) * k
+    }
+    return px
+}
 
 /**
  * Caps every pixel of a run-length encoded Radiance .hdr at [maxExponent] in place: only the exponent channel's bytes

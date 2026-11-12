@@ -43,11 +43,11 @@ private const val UPRIGHT = 3
 /** Eye height above the ground; SceneSpec.flat()'s camera path already includes it. */
 private const val EYE = 1.25f
 
-/** Backdrop and fog per setting; the garage ramp is underground, so it gets a dark ceiling instead of sky and trees. */
+/** Backdrop and fog per setting (outdoor: sRGB sampled from the 3D scene's captures, so the crossfade does not shift); the garage ramp is underground, so it gets a dark ceiling instead of sky and trees. */
 private class Look(val top: Long, val fog: Long, val ground: Long, val fogNear: Float, val fogFar: Float)
-private val Outdoor = Look(0xFF8FAFD2, 0xFFB3C9DF, 0xFF6F826D, 60f, 330f)
+private val Outdoor = Look(0xFFA8C3E8, 0xFFE3EBF2, 0xFFAEBFA2, 60f, 330f)
 private val Underground = Look(0xFF20242A, 0xFF0B0D10, 0xFF15181C, 8f, 90f)
-private val TreeColors = intArrayOf(0xFF2F4A3A.toInt(), 0xFF3A5642.toInt())
+private val TreeColors = intArrayOf(0xFF7EA37D.toInt(), 0xFF5F8A66.toInt())
 
 /** Driver's-eye camera at [eye] looking along [look] (any length); up is +Y, no roll. */
 internal class Camera(val eye: Vec3, look: Vec3) {

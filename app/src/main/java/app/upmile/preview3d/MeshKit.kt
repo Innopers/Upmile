@@ -18,7 +18,10 @@ import kotlin.math.sqrt
 
 /** Turns a scene's ribbons, patches and extrusions into one mesh per material. */
 internal object MeshKit {
-    /** Metres per texture repeat. Ground uses world XZ (so overlapping asphalt pieces line up); solids run along their path. */
+    /**
+     * Metres per texture repeat. Ground uses world XZ (so overlapping asphalt pieces line up); solids run along their path.
+     * Most materials are flat colours now and never read their UVs; only the hazard stripes (and any future textured surface) use this.
+     */
     private val TILE = mapOf(
         Mat.ASPHALT to 6f, Mat.GRASS to 5f, Mat.PAVING to 4f, Mat.CONCRETE to 3f, Mat.EPOXY to 4f,
         Mat.BARRIER to 2f, Mat.WALL to 3f, Mat.CEILING to 3f, Mat.HAZARD to 1f, Mat.NOISE_WALL to 4f,
