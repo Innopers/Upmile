@@ -2,8 +2,6 @@
 
 - 차량 모델 models/*.glb, models/Textures/colormap.png
   Kenney "Car Kit" 3.1 (www.kenney.nl). colormap.png는 색을 바꿔 가공했다.
-- 질감 textures/asphalt.jpg, concrete.jpg, grass.jpg, paving.jpg, epoxy.jpg
-  ambientCG Asphalt023S, Concrete034, Grass004, PavingStones126A (ambientCG.com). 크기·밝기·색을 바꿔 가공했다.
 - 하늘 sky.hdr
   Poly Haven "Kloofendal 48d Partly Cloudy (Pure Sky)" (polyhaven.com).
 

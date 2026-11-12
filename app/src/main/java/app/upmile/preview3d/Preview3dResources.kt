@@ -100,7 +100,7 @@ internal class Preview3dResources private constructor(private val context: Conte
     private val hazardTex = texture(Bitmaps.hazard())
     val mats: Map<Mat, MaterialInstance> = mapOf(
         Mat.ASPHALT to matte(0xFF4A4E4C, .92f), Mat.GRASS to matte(0xFF8DA375, 1f),
-        Mat.PAVING to matte(0xFFD9DADB, .85f), Mat.CONCRETE to concrete, Mat.EPOXY to matte(0xFF3D6E50, .35f), // epoxy.jpg's mean colour
+        Mat.PAVING to matte(0xFFD9DADB, .85f), Mat.CONCRETE to concrete, Mat.EPOXY to matte(0xFF3D6E50, .35f), // the garage floor's green-grey
         Mat.KERB to matte(0xFFC2C3C4, .8f), Mat.WHITE_PAINT to color(.92f, .93f, .94f, roughness = .6f), Mat.YELLOW_PAINT to color(.95f, .72f, .12f, roughness = .6f),
         Mat.BARRIER to concrete, Mat.STEEL to color(.72f, .74f, .76f, metallic = .8f, roughness = .35f),
         Mat.NOISE_WALL to matte(0xFFB9C7BD, .85f), Mat.WALL to concrete, Mat.CEILING to color(.5f, .5f, .52f, roughness = .9f),
