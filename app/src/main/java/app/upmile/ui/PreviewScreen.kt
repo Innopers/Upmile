@@ -49,28 +49,21 @@ import app.upmile.Graph
 import app.upmile.core.model.HardSegment
 import app.upmile.core.model.Route
 import app.upmile.core.model.SegmentType
-import app.upmile.core.preview3d.RoadTemplates
-import app.upmile.core.preview3d.arcLengths
+import app.upmile.core.preview3d.SceneBuilder
+import app.upmile.core.preview3d.flat
+import app.upmile.core.preview3d.remainingM
 import app.upmile.core.route.Destination
 import app.upmile.core.route.SegmentFinder
 import app.upmile.drive.DriveService
-import app.upmile.preview3d.CanvasPreview
+import app.upmile.preview3d.Preview3d
 import app.upmile.ui.theme.Palette
 import java.util.Locale
 import kotlin.math.roundToInt
 import kotlinx.coroutines.flow.first
 
-/** Preview pace, about 43 km/h: slow enough to take in each cue before the next one. */
-private const val PREVIEW_MPS = 12f
-/** The shortest template still gets time to speak its cues; the longest never drags past 40 s. */
-private const val MIN_RUN_MS = 12_000L
-private const val MAX_RUN_MS = 40_000L
 private const val SLOW_RATE = .5f
 /** A longer frame gap (paused app, jank) is not played through in one jump. */
 private const val MAX_FRAME_MS = 100L
-
-/** How long one run takes at full speed for a camera path of [pathM] metres. */
-internal fun runMs(pathM: Float): Long = (pathM / PREVIEW_MPS * 1000f).toLong().coerceIn(MIN_RUN_MS, MAX_RUN_MS)
 
 /** One frame's outcome: the new playback, cue lines that just became active, and whether this frame finished the run. */
 internal class Step(val playback: Playback, val say: List<String>, val rehearsed: Boolean)
@@ -240,8 +233,8 @@ private fun SegmentRow(i: Int, s: HardSegment, selected: Boolean, seen: Boolean,
 private fun Rehearsal(
     segment: HardSegment, index: Int, count: Int, onRehearsed: (String) -> Unit, onNextSegment: (() -> Unit)?, modifier: Modifier,
 ) {
-    val scene = remember(segment) { RoadTemplates.build(segment) }
-    val pathM = remember(scene) { arcLengths(scene.cameraPath).last() }
+    val spec = remember(segment) { SceneBuilder.build(segment) }
+    val flat = remember(spec) { spec.flat() }
     var play by remember(segment) { mutableStateOf(Playback()) }
     val rehearsedNow by rememberUpdatedState(onRehearsed)
     LaunchedEffect(segment) {
@@ -253,7 +246,7 @@ private fun Rehearsal(
                 last = withFrameMillis { it }
             }
             withFrameMillis { now ->
-                val s = play.step((now - last).coerceAtMost(MAX_FRAME_MS), runMs(pathM), scene.cues)
+                val s = play.step((now - last).coerceAtMost(MAX_FRAME_MS), spec.durationMs, spec.cues)
                 last = now
                 s.say.forEach { Graph.voice.say(it) }
                 if (s.rehearsed) rehearsedNow(segment.id)
@@ -264,7 +257,7 @@ private fun Rehearsal(
 
     val shape = RoundedCornerShape(26.dp)
     Box(modifier.clip(shape).border(1.dp, Palette.line, shape)) {
-        CanvasPreview(scene, play.progress, Modifier.fillMaxSize())
+        Preview3d(spec, flat, play.progress, cornerColor = Palette.bg, corner = 26.dp, modifier = Modifier.fillMaxSize())
         Row(Modifier.fillMaxWidth().padding(20.dp), verticalAlignment = Alignment.Top) {
             Text(
                 buildAnnotatedString {
@@ -282,7 +275,7 @@ private fun Rehearsal(
                         .padding(horizontal = 20.dp, vertical = 12.dp),
                     horizontalAlignment = Alignment.End,
                 ) {
-                    Text("${(pathM * (1 - play.progress)).roundToInt()}m", fontSize = 38.sp, fontWeight = FontWeight.SemiBold)
+                    Text("${spec.remainingM(play.progress).roundToInt()}m", fontSize = 38.sp, fontWeight = FontWeight.SemiBold)
                     Text("남은 거리", color = Palette.sub, fontSize = 18.sp)
                 }
                 if (play.playing) Row(
@@ -297,7 +290,7 @@ private fun Rehearsal(
         }
         Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             val at = play.cue.coerceAtLeast(0)
-            scene.cues.getOrNull(at)?.let { (_, text) -> Guide(text, scene.cues.getOrNull(at + 1)?.second) }
+            spec.cues.getOrNull(at)?.let { (_, text) -> Guide(text, spec.cues.getOrNull(at + 1)?.second) }
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
                 ControlButton(onClick = { play = play.toggled() }, icon = if (play.playing) PauseIcon else PlayIcon, description = if (play.playing) "일시 정지" else "재생")
                 ControlButton("다시 보기", { quiet(); play = play.restarted() }, icon = ReplayIcon)

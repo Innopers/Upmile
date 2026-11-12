@@ -13,7 +13,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.drawscope.translate
-import app.upmile.core.preview3d.RoadTemplates.WALL
+import app.upmile.core.preview3d.WALL
 import app.upmile.core.preview3d.Strip
 import app.upmile.core.preview3d.TemplateScene
 import app.upmile.core.preview3d.Vec3
@@ -40,7 +40,7 @@ private const val TREE_REACH = 100f
 /** Trees keep this far from any strip's edge, so they never stand on or crowd the road. */
 private const val TREE_MARGIN = 6f
 private const val UPRIGHT = 3
-/** Eye height above the ground; RoadTemplates' camera path already includes it. */
+/** Eye height above the ground; SceneSpec.flat()'s camera path already includes it. */
 private const val EYE = 1.25f
 
 /** Backdrop and fog per setting; the garage ramp is underground, so it gets a dark ceiling instead of sky and trees. */

@@ -10,13 +10,6 @@ class PreviewPlaybackTest {
     private val cues = listOf(.1f to "진입로 주행", .5f to "가속 차로", .9f to "합류 완료")
     private val run = 20_000L
 
-    @Test fun runTime_isPathOverTwelveMetresASecond() = assertEquals(25_000L, runMs(300f))
-
-    @Test fun runTime_isClampedBetween12And40Seconds() {
-        assertEquals(12_000L, runMs(60f))
-        assertEquals(40_000L, runMs(900f))
-    }
-
     @Test fun advance_movesByElapsedOverRunTime() = assertEquals(.25f, Playback().step(5_000, run, cues).playback.progress, 1e-6f)
 
     @Test fun slow_movesAtHalfSpeed() =
