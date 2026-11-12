@@ -35,7 +35,7 @@ object Palette {
     val danger = Color(0xFFFF5A5A)
 }
 
-/** Asta Sans (42dot, OFL 1.1): one variable TTF, each weight pinned through the wght axis. */
+/** Asta Sans (OFL 1.1): one variable TTF, each weight pinned through the wght axis. */
 @OptIn(ExperimentalTextApi::class) // resource Font with variationSettings
 val AstaSans = FontFamily(
     listOf(400, 500, 600, 700).map { w ->
