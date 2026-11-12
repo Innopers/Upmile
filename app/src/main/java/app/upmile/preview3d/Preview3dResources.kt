@@ -106,14 +106,14 @@ internal class Preview3dResources private constructor(private val context: Conte
         Mat.NOISE_WALL to matte(0xFFB9C7BD, .85f), Mat.WALL to concrete, Mat.CEILING to color(.5f, .5f, .52f, roughness = .9f),
         Mat.HAZARD to textured(hazardTex, .6f),
     )
-    private val warmWall = matte(0xFFEAE0CE)
+    private val warmWall = matte(0xFFDAC29A)
     val parts: Map<Part, MaterialInstance> = mapOf(
         Part.POLE to color(.55f, .57f, .6f, metallic = .6f, roughness = .45f), Part.DARK to color(.06f, .06f, .07f, roughness = .5f),
         Part.BACK to color(.42f, .43f, .45f, metallic = .5f, roughness = .5f), Part.LAMP_WARM to glow(1f, .95f, .85f),
         Part.LAMP_OFF to color(.1f, .1f, .1f, roughness = .3f), Part.RED_ON to glow(1f, .12f, .08f), Part.YELLOW_ON to glow(1f, .7f, .05f),
         Part.ARROW_ON to glow(.1f, .95f, .55f), Part.GREEN_ON to glow(.1f, .95f, .55f),
         Part.FOLIAGE to matte(0xFF7FA16E), Part.BARK to matte(0xFF8A7A68, .95f),
-        Part.GLASS_FACADE to matte(0xFFBAC2C9), Part.APT_FACADE to warmWall, Part.SHOP_FACADE to warmWall,
+        Part.OFFICE_FACADE to matte(0xFFA2A098), Part.APT_FACADE to warmWall, Part.SHOP_FACADE to warmWall,
         Part.ROOF to matte(0xFFBFC3C7), Part.MIRROR to color(.85f, .88f, .9f, metallic = 1f, roughness = .05f),
         Part.MIRROR_RIM to color(.95f, .45f, .1f, roughness = .5f), Part.HAZARD to textured(hazardTex, .6f),
         Part.CONCRETE to concrete, Part.STEEL to color(.72f, .74f, .76f, metallic = .8f, roughness = .35f),

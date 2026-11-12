@@ -181,11 +181,12 @@ internal class SceneNodes(val spec: SceneSpec, private val res: Preview3dResourc
 
         /**
          * Outdoor haze at k = 0, the dark tunnel at k = 1, blended between. A fixed colour, not fogColorFromIbl: a colour
-         * sampled from the sky cannot blend into the tunnel's grey (indoors it turns the ceiling navy).
+         * sampled from the sky cannot blend into the tunnel's grey (indoors it turns the ceiling navy). Outdoors it starts at
+         * 150 m: the scenes' near tall buildings (up to ~150 m) keep their colour, the ones beyond melt into the sky.
          */
         fun fog(k: Float) = View.FogOptions().apply {
             enabled = true
-            distance = lerp(50f, 8f, k); density = lerp(.004f, .03f, k); maximumOpacity = lerp(.9f, .95f, k)
+            distance = lerp(150f, 8f, k); density = lerp(.006f, .03f, k); maximumOpacity = lerp(.9f, .95f, k)
             heightFalloff = 0f      // even density: the garage floor is 5 m below y = 0, where Filament's default falloff of 1/m would thicken it 150x
             cutOffDistance = 500f   // the skybox (at the far plane) keeps its gradient
             color = FloatArray(3) { lerp(OUTDOOR_FOG[it], INDOOR_FOG[it], k) }

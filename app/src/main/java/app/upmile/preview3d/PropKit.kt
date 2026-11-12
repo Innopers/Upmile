@@ -13,7 +13,7 @@ import kotlin.math.sqrt
 
 /** Prop materials; each maps to one shared Filament material (Task 9). */
 internal enum class Part { POLE, DARK, BACK, LAMP_WARM, LAMP_OFF, RED_ON, YELLOW_ON, ARROW_ON, GREEN_ON, FOLIAGE, BARK,
-    GLASS_FACADE, APT_FACADE, SHOP_FACADE, ROOF, MIRROR, MIRROR_RIM, HAZARD, CONCRETE, STEEL }
+    OFFICE_FACADE, APT_FACADE, SHOP_FACADE, ROOF, MIRROR, MIRROR_RIM, HAZARD, CONCRETE, STEEL }
 /** A texture drawn from text; signs with the same kind and text share one. */
 internal data class SignFace(val kind: PropKind, val text: List<String>)
 internal sealed interface Batch {
@@ -98,7 +98,7 @@ internal object PropKit {
                 ellipsoid(Vec3(0f, .6f * s.y, 0f), Vec3(s.x, .34f * s.y, s.x), Part.FOLIAGE)
                 ellipsoid(Vec3(0f, .82f * s.y, 0f), Vec3(.65f * s.x, .18f * s.y, .65f * s.x), Part.FOLIAGE)
             }
-            PropKind.BUILDING_GLASS -> building(s, Part.GLASS_FACADE)
+            PropKind.BUILDING_GLASS -> building(s, Part.OFFICE_FACADE)
             PropKind.BUILDING_APT -> building(s, Part.APT_FACADE)
             PropKind.BUILDING_SHOP -> building(s, Part.SHOP_FACADE)
             PropKind.PILLAR -> pillar(face, s.x, s.y)
