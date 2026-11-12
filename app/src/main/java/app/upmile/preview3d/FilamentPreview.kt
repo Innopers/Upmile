@@ -173,8 +173,8 @@ internal class SceneNodes(val spec: SceneSpec, private val res: Preview3dResourc
         const val HEADLIGHT_IDLE_LM = 1f
         val CASTERS = setOf(Mat.BARRIER, Mat.STEEL, Mat.NOISE_WALL, Mat.WALL, Mat.CEILING, Mat.KERB)
         val GLOWS = setOf(Part.LAMP_WARM, Part.RED_ON, Part.YELLOW_ON, Part.ARROW_ON, Part.GREEN_ON)
-        /** The sky at the horizon (sky.hdr 0..5 degrees, at the sunny-16 exposure) outdoors; dark grey in the tunnel. */
-        val OUTDOOR_FOG = floatArrayOf(.34f, .37f, .45f)
+        /** The sky at the horizon outdoors; dark grey in the tunnel. */
+        val OUTDOOR_FOG = SKY_HORIZON
         val INDOOR_FOG = floatArrayOf(.07f, .07f, .08f)
 
         fun lerp(a: Float, b: Float, k: Float) = a + (b - a) * k
@@ -185,9 +185,9 @@ internal class SceneNodes(val spec: SceneSpec, private val res: Preview3dResourc
          */
         fun fog(k: Float) = View.FogOptions().apply {
             enabled = true
-            distance = lerp(40f, 8f, k); density = lerp(.004f, .03f, k); maximumOpacity = lerp(.85f, .95f, k)
+            distance = lerp(50f, 8f, k); density = lerp(.004f, .03f, k); maximumOpacity = lerp(.9f, .95f, k)
             heightFalloff = 0f      // even density: the garage floor is 5 m below y = 0, where Filament's default falloff of 1/m would thicken it 150x
-            cutOffDistance = 500f   // the skybox (at the far plane) keeps its clouds
+            cutOffDistance = 500f   // the skybox (at the far plane) keeps its gradient
             color = FloatArray(3) { lerp(OUTDOOR_FOG[it], INDOOR_FOG[it], k) }
         }
     }
