@@ -5,9 +5,7 @@ Usage: python3 tools/preview3d_assets.py <assets-src/preview3d> [--sky 2k|1k]
 Needs Pillow and numpy. Sources and licences: <assets-src>/preview3d/SOURCES.md.
 """
 import argparse
-import io
 import shutil
-import zipfile
 from pathlib import Path
 
 import numpy as np
@@ -18,14 +16,6 @@ MODELS = ["sedan", "suv", "van", "hatchback-sports", "taxi", "truck", "delivery"
 CELL_W, CELL_H = 64, 128
 BODY = [(3, 1), (4, 1), (6, 1), (7, 1)]  # paint; the app tints a copy of colormap.png per paint (Preview3dResources.carPaint)
 GLASS, TRIM = (5, 2), (3, 2)
-# app name: (ambientCG id, size px, brightness gain, tint or None)
-TEXTURES = {
-    "asphalt": ("Asphalt023S", 1024, 0.70, None),
-    "concrete": ("Concrete034", 512, 1.00, None),
-    "grass": ("Grass004", 512, 0.90, None),
-    "paving": ("PavingStones126A", 512, 1.00, None),
-    "epoxy": ("Concrete034", 512, 1.00, (0.33, 0.60, 0.43)),
-}
 
 
 def recolor(src: Path, dst: Path) -> None:
@@ -46,16 +36,6 @@ def recolor(src: Path, dst: Path) -> None:
     Image.fromarray(im.clip(0, 255).astype(np.uint8)).save(dst, optimize=True)
 
 
-def texture(src: Path, out: Path, ident: str, size: int, gain: float, tint) -> None:
-    with zipfile.ZipFile(src / "ambientcg" / f"{ident}.zip") as z:
-        data = z.read(f"{ident}_1K-JPG_Color.jpg")
-    im = Image.open(io.BytesIO(data)).convert("RGB").resize((size, size), Image.LANCZOS)
-    a = np.asarray(im).astype(np.float32) * gain
-    if tint is not None:
-        a = a.mean(axis=2, keepdims=True) * np.array(tint, np.float32)
-    Image.fromarray(a.clip(0, 255).astype(np.uint8)).save(out, quality=85, optimize=True)
-
-
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("src", type=Path)
@@ -63,13 +43,10 @@ def main() -> None:
     args = ap.parse_args()
     root = Path(__file__).resolve().parent.parent / "assets" / "preview3d"
     (root / "models" / "Textures").mkdir(parents=True, exist_ok=True)
-    (root / "textures").mkdir(parents=True, exist_ok=True)
     glb = args.src / "kenney-car-kit" / "glb"
     for m in MODELS:
         shutil.copyfile(glb / f"{m}.glb", root / "models" / f"{m}.glb")
     recolor(glb / "Textures" / "colormap.png", root / "models" / "Textures" / "colormap.png")
-    for name, (ident, size, gain, tint) in TEXTURES.items():
-        texture(args.src, root / "textures" / f"{name}.jpg", ident, size, gain, tint)
     shutil.copyfile(args.src / "polyhaven" / f"kloofendal_48d_partly_cloudy_puresky_{args.sky}.hdr", root / "sky.hdr")
     for p in sorted(root.rglob("*")):
         if p.is_file():

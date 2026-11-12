@@ -3,13 +3,11 @@ package app.upmile.preview3d
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
-import android.graphics.LinearGradient
 import android.graphics.Matrix
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.PointF
 import android.graphics.RectF
-import android.graphics.Shader
 import android.graphics.Typeface
 import androidx.core.content.res.ResourcesCompat
 import app.upmile.R
@@ -18,7 +16,7 @@ import kotlin.math.cos
 import kotlin.math.hypot
 import kotlin.math.sin
 
-/** Sign faces, facades and the hazard stripe, drawn with Android Canvas; the top row of each bitmap is v = 0 in PropKit. */
+/** Sign faces and the hazard stripe, drawn with Android Canvas; the top row of each bitmap is v = 0 in PropKit. */
 internal object Bitmaps {
     private const val WHITE = 0xFFFFFFFF.toInt()
     private const val BLACK = 0xFF111111.toInt()
@@ -130,48 +128,6 @@ internal object Bitmaps {
         return Path().apply { moveTo(p.x, p.y); lineTo(q.x, q.y); lineTo(r.x, r.y); close() }
     }
 
-    fun facade(part: Part): Bitmap = when (part) {
-        Part.GLASS_FACADE -> draw(512, 512) {
-            for (col in 0 until 4) for (row in 0 until 4) {
-                val k = ((col * 7 + row * 13) % 5) / 4f
-                val base = mix(0xFF3E5566.toInt(), 0xFF6E8796.toInt(), k)
-                val x = col * 128f; val y = row * 128f
-                drawRect(x, y, x + 128f, y + 128f, Paint().apply { shader = LinearGradient(0f, y, 0f, y + 128f, mix(base, WHITE, .18f), base, Shader.TileMode.CLAMP) })
-            }
-            val mullion = fill(0xFF2B2F33.toInt()); val band = fill(0xFF1E2226.toInt())
-            for (i in 0..4) drawRect(i * 128f - 3f, 0f, i * 128f + 3f, 512f, mullion) // halves at 0 and 512 meet when the tile repeats
-            for (i in 0 until 4) drawRect(0f, i * 128f, 512f, i * 128f + 14f, band)   // the slab at the top of each floor; the roof edge is row 0
-        }
-        Part.APT_FACADE -> draw(512, 512) {
-            drawColor(0xFFE9E4DA.toInt())
-            val band = fill(0xFFC9C6BF.toInt()); val rail = fill(0xFFF7F7F5.toInt())
-            for (row in 0 until 4) {
-                val y = row * 128f
-                drawRect(0f, y, 512f, y + 8f, band)
-                for (col in 0 until 4) {
-                    val x = col * 128f
-                    drawRect(x + 18f, y + 28f, x + 110f, y + 94f, fill(mix(0xFF26323C.toInt(), 0xFF3A4A57.toInt(), ((col * 5 + row * 3) % 4) / 3f)))
-                    drawRect(x + 14f, y + 94f, x + 114f, y + 101f, rail)
-                }
-            }
-        }
-        Part.SHOP_FACADE -> draw(512, 512) {
-            drawColor(0xFFD8D2C8.toInt())
-            val awnings = listOf(0xFFC8553D, 0xFF2F7D6D, 0xFFD9A441, 0xFF3B5BA5).map { it.toInt() }
-            val signs = listOf(0xFF22313F, 0xFF8C2F39, 0xFF1F5E4A, 0xFF4A3B6B).map { it.toInt() }
-            val win = fill(0xFF33414C.toInt()); val shop = fill(0xFF2A353E.toInt()); val frame = stroke(0xFF1A1F24.toInt(), 6f)
-            for (col in 0 until 4) {
-                val x = col * 128f
-                for (y in listOf(28f, 150f)) drawRect(x + 20f, y, x + 108f, y + 90f, win)
-                drawRect(x + 8f, 268f, x + 120f, 316f, fill(signs[col]))      // blank signboard: no names
-                drawRect(x + 4f, 330f, x + 124f, 356f, fill(awnings[col]))
-                drawRect(x + 10f, 362f, x + 118f, 506f, shop)
-                drawRect(x + 10f, 362f, x + 118f, 506f, frame)
-            }
-        }
-        else -> draw(4, 4) { drawColor(0xFF808080.toInt()) }
-    }
-
     /** 45 degree yellow and black stripes, 32 px each; the 256 px tile repeats seamlessly. */
     fun hazard(): Bitmap {
         val px = IntArray(256 * 256) { i -> if (((i % 256) + i / 256) % 64 < 32) 0xFFF5C400.toInt() else 0xFF1A1A1A.toInt() }
@@ -189,9 +145,4 @@ internal object Bitmaps {
     }
     private fun fill(color: Int) = Paint(Paint.ANTI_ALIAS_FLAG).apply { this.color = color }
     private fun stroke(color: Int, w: Float) = Paint(Paint.ANTI_ALIAS_FLAG).apply { this.color = color; style = Paint.Style.STROKE; strokeWidth = w }
-
-    private fun mix(a: Int, b: Int, k: Float): Int {
-        fun ch(s: Int) = (((a shr s) and 0xFF) * (1 - k) + ((b shr s) and 0xFF) * k).toInt() shl s
-        return (0xFF shl 24) or ch(16) or ch(8) or ch(0)
-    }
 }

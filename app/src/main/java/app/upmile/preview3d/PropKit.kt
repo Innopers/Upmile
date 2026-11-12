@@ -13,7 +13,7 @@ import kotlin.math.sqrt
 
 /** Prop materials; each maps to one shared Filament material (Task 9). */
 internal enum class Part { POLE, DARK, BACK, LAMP_WARM, LAMP_OFF, RED_ON, YELLOW_ON, ARROW_ON, GREEN_ON, FOLIAGE, BARK,
-    GLASS_FACADE, APT_FACADE, SHOP_FACADE, ROOF, MIRROR, MIRROR_RIM, HAZARD, CONCRETE, STEEL }
+    OFFICE_FACADE, APT_FACADE, SHOP_FACADE, ROOF, MIRROR, MIRROR_RIM, HAZARD, CONCRETE, STEEL }
 /** A texture drawn from text; signs with the same kind and text share one. */
 internal data class SignFace(val kind: PropKind, val text: List<String>)
 internal sealed interface Batch {
@@ -50,9 +50,6 @@ internal object PropKit {
     private const val TRI_BACK_SIDE = 1f
     private const val ROUND_R = .32f
     private const val ROUND_BACK_R = .36f
-    private const val BUILDING_TILE_W = 12f
-    private const val GLASS_TILE_H = 14.4f
-    private const val APT_TILE_H = 11.2f
     private const val EQUILATERAL = 0.8660254f
 
     private fun defaultSize(k: PropKind): Vec3 = when (k) {
@@ -101,9 +98,9 @@ internal object PropKit {
                 ellipsoid(Vec3(0f, .6f * s.y, 0f), Vec3(s.x, .34f * s.y, s.x), Part.FOLIAGE)
                 ellipsoid(Vec3(0f, .82f * s.y, 0f), Vec3(.65f * s.x, .18f * s.y, .65f * s.x), Part.FOLIAGE)
             }
-            PropKind.BUILDING_GLASS -> building(s, Part.GLASS_FACADE, GLASS_TILE_H)
-            PropKind.BUILDING_APT -> building(s, Part.APT_FACADE, APT_TILE_H)
-            PropKind.BUILDING_SHOP -> building(s, Part.SHOP_FACADE, s.y)
+            PropKind.BUILDING_GLASS -> building(s, Part.OFFICE_FACADE)
+            PropKind.BUILDING_APT -> building(s, Part.APT_FACADE)
+            PropKind.BUILDING_SHOP -> building(s, Part.SHOP_FACADE)
             PropKind.PILLAR -> pillar(face, s.x, s.y)
             PropKind.CEILING_LIGHT -> box(Vec3(0f, 0f, 0f), s, Part.LAMP_WARM)
             PropKind.CONVEX_MIRROR -> {
@@ -185,15 +182,14 @@ internal object PropKit {
         disc(Vec3(0f, 2.3f, 0f), ROUND_R, face)
     }
 
-    /** [pos] is the bottom centre. v runs down from the roof edge: 0 at the top. */
-    private fun Shapes.building(s: Vec3, wall: Part, tileH: Float) {
+    /** [pos] is the bottom centre; flat walls, so no uv tiling. */
+    private fun Shapes.building(s: Vec3, wall: Part) {
         val hx = s.x / 2; val hz = s.z / 2; val h = s.y; val b = Batch.Of(wall)
-        fun side(tl: Vec3, tr: Vec3, len: Float) =
-            face(tl, tr, Vec3(tr.x, 0f, tr.z), Vec3(tl.x, 0f, tl.z), b, floatArrayOf(0f, 0f, len / BUILDING_TILE_W, 0f, len / BUILDING_TILE_W, h / tileH, 0f, h / tileH))
-        side(Vec3(-hx, h, hz), Vec3(hx, h, hz), s.x)
-        side(Vec3(hx, h, hz), Vec3(hx, h, -hz), s.z)
-        side(Vec3(hx, h, -hz), Vec3(-hx, h, -hz), s.x)
-        side(Vec3(-hx, h, -hz), Vec3(-hx, h, hz), s.z)
+        fun side(tl: Vec3, tr: Vec3) = face(tl, tr, Vec3(tr.x, 0f, tr.z), Vec3(tl.x, 0f, tl.z), b)
+        side(Vec3(-hx, h, hz), Vec3(hx, h, hz))
+        side(Vec3(hx, h, hz), Vec3(hx, h, -hz))
+        side(Vec3(hx, h, -hz), Vec3(-hx, h, -hz))
+        side(Vec3(-hx, h, -hz), Vec3(-hx, h, hz))
         face(Vec3(-hx, h, -hz), Vec3(hx, h, -hz), Vec3(hx, h, hz), Vec3(-hx, h, hz), Batch.Of(Part.ROOF))
     }
 
@@ -272,25 +268,21 @@ internal object PropKit {
             }
         }
 
-        /** 8 x 6 flat-shaded facets; pole to pole, the top is exactly center.y + radii.y. */
+        /** A smooth 16 x 10 grid with per-vertex normals; pole to pole, the top is exactly center.y + radii.y. */
         fun ellipsoid(center: Vec3, radii: Vec3, part: Part) {
-            val b = Batch.Of(part); val cols = 8; val rows = 6
-            fun pt(i: Int, j: Int): Vec3 {
+            val m = mesh(Batch.Of(part)); val first = m.vertexCount; val cols = 16; val rows = 10
+            for (i in 0..rows) for (j in 0..cols) {
                 val phi = PI.toFloat() * i / rows; val th = 2 * PI.toFloat() * j / cols
-                return Vec3(center.x + radii.x * sin(phi) * cos(th), center.y + radii.y * cos(phi), center.z + radii.z * sin(phi) * sin(th))
+                val d = Vec3(sin(phi) * cos(th), cos(phi), sin(phi) * sin(th))
+                m.vertex(p(Vec3(center.x + radii.x * d.x, center.y + radii.y * d.y, center.z + radii.z * d.z)),
+                    n(Vec3(d.x / radii.x, d.y / radii.y, d.z / radii.z).unit()), j.toFloat() / cols, i.toFloat() / rows)
             }
-            fun normal(vararg q: Vec3): Vec3 {
-                val m = Vec3(q.sumOf { it.x.toDouble() }.toFloat() / q.size, q.sumOf { it.y.toDouble() }.toFloat() / q.size, q.sumOf { it.z.toDouble() }.toFloat() / q.size) - center
-                return Vec3(m.x / (radii.x * radii.x), m.y / (radii.y * radii.y), m.z / (radii.z * radii.z)).unit()
-            }
+            // i runs down from the top pole, j around toward +z: a-b-c and a-c-d wind counter-clockwise seen from outside;
+            // at the poles one of the two is degenerate and left out
             for (i in 0 until rows) for (j in 0 until cols) {
-                val u0 = j.toFloat() / cols; val u1 = (j + 1f) / cols; val v0 = i.toFloat() / rows; val v1 = (i + 1f) / rows
-                val a = pt(i, j); val bb = pt(i, j + 1); val cc = pt(i + 1, j + 1); val d = pt(i + 1, j)
-                when (i) {
-                    0 -> tri(b, a, cc, d, normal(a, cc, d), floatArrayOf(u0, v0, u1, v1, u0, v1))
-                    rows - 1 -> tri(b, a, bb, d, normal(a, bb, d), floatArrayOf(u0, v0, u1, v0, u0, v1))
-                    else -> quad(b, a, bb, cc, d, normal(a, bb, cc, d), floatArrayOf(u0, v0, u1, v0, u1, v1, u0, v1))
-                }
+                val a = first + i * (cols + 1) + j; val b = a + 1; val c = b + cols + 1; val d = a + cols + 1
+                if (i > 0) m.triangle(a, b, c)
+                if (i < rows - 1) m.triangle(a, c, d)
             }
         }
     }

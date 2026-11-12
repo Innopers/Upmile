@@ -75,7 +75,7 @@ JSON이 든 두 번째 명령은 바깥을 큰따옴표로 감싸야 따옴표�
 - 시·군·구 경계(`assets/regions/sigungu.geojson`): 통계청 SGIS 행정구역 경계(공공누리 1유형)를 가공한 vuski/admdongkor(https://github.com/vuski/admdongkor, CC BY 4.0) 데이터를 단순화·병합하여 사용했습니다. 생성: `tools/build_regions.sh`.
 - 루틴 배경음(`assets/music/calm_start.m4a`): Upmile 팀이 `tools/make_music.py`로 직접 생성한 음원(CC0 1.0).
 - 글꼴 Asta Sans(`app/src/main/res/font/asta_sans.ttf`): 42dot의 Asta Sans 가변 글꼴(SIL Open Font License 1.1). 라이선스 전문: `assets/licenses/AstaSans-OFL.txt`.
-- 미리 달리기 3D 소재(`assets/preview3d/`): Kenney Car Kit(차량), ambientCG(질감), Poly Haven(하늘 HDR) — 모두 CC0 1.0. 출처와 가공 내용: `assets/licenses/preview3d-CC0.txt`, 가공 스크립트: `tools/preview3d_assets.py`.
+- 미리 달리기 3D 소재(`assets/preview3d/`): Kenney Car Kit(차량), Poly Haven(하늘 HDR) — 모두 CC0 1.0. 출처와 가공 내용: `assets/licenses/preview3d-CC0.txt`, 가공 스크립트: `tools/preview3d_assets.py`.
 - 3D 엔진 SceneView 2.3.4(https://github.com/SceneView/sceneview-android)와 Filament 1.68.2(https://github.com/google/filament): Apache License 2.0.
 
 ## 개발 메모
